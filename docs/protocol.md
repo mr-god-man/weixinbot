@@ -26,7 +26,7 @@ https://login.weixin.qq.com/cgi-bin/mmwebwx-bin/login?uuid=454d958c7f6243&tip=1&
 window.code=201;
 
 
-### 未扫描返回空
+### 未扫描返回 408
 
 
 ## 扫描之后-第一次请求成功
