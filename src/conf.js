@@ -1,16 +1,11 @@
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
 /* eslint-disable prefer-template */
-var protocol = 'https:';
-var host = 'wx2.qq.com';
-var weixinUrl = 'weixin.qq.com';
-var fileUrl = 'file2.wx.qq.com';
-var webPushUrl = 'webpush2.weixin.qq.com';
+const protocol = 'https:';
+const host = 'wx2.qq.com';
+const weixinUrl = 'weixin.qq.com';
+const fileUrl = 'file2.wx.qq.com';
+const webPushUrl = 'webpush2.weixin.qq.com';
 
-exports.default = {
+export default {
   LANG: 'zh_CN',
   RES_PATH: '/zh_CN/htmledition/v2/',
   QRCODE_PATH: 'https://login.' + weixinUrl + '/qrcode/',
@@ -20,7 +15,7 @@ exports.default = {
   API_webwxdownloadmedia: 'https://' + fileUrl + '/cgi-bin/mmwebwx-bin/webwxgetmedia',
   API_webwxuploadmedia: 'https://' + fileUrl + '/cgi-bin/mmwebwx-bin/webwxuploadmedia',
   API_webwxpreview: '/cgi-bin/mmwebwx-bin/webwxpreview',
-  API_webwxinit: '/cgi-bin/mmwebwx-bin/webwxinit?r=' + ~new Date(),
+  API_webwxinit: '/cgi-bin/mmwebwx-bin/webwxinit?r=' + ~new Date,
   API_webwxgetcontact: '/cgi-bin/mmwebwx-bin/webwxgetcontact',
   API_webwxsync: '/cgi-bin/mmwebwx-bin/webwxsync',
   API_webwxbatchgetcontact: '/cgi-bin/mmwebwx-bin/webwxbatchgetcontact',
@@ -46,7 +41,7 @@ exports.default = {
   API_webwxoplog: '/cgi-bin/mmwebwx-bin/webwxoplog',
   oplogCmdId: {
     TOPCONTACT: 3,
-    MODREMARKNAME: 2
+    MODREMARKNAME: 2,
   },
   SP_CONTACT_FILE_HELPER: 'filehelper',
   SP_CONTACT_NEWSAPP: 'newsapp',
@@ -186,5 +181,5 @@ exports.default = {
   MM_SEND_FILE_STATUS_SUCCESS: 2,
   MM_SEND_FILE_STATUS_FAIL: 3,
   MM_SEND_FILE_STATUS_CANCEL: 4,
-  MM_EMOTICON_WEB: '_web'
+  MM_EMOTICON_WEB: '_web',
 };
