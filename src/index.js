@@ -1,4 +1,4 @@
-/* eslint-disable no-console,quote-props,no-constant-condition */
+/* eslint-disable no-console,quote-props,no-constant-condition,prefer-template */
 import path from 'path';
 import zlib from 'zlib';
 import RequestPromise from 'request-promise';
@@ -30,18 +30,34 @@ const rp = RequestPromise.defaults({
   jar: new FileCookieStore(cookiePath),
   transform(buf, response) {
     if (response.headers['content-encoding'] === 'deflate') {
-      return zlib.inflateRawSync(buf).toString();
+      const str = zlib.inflateRawSync(buf).toString();
+      try {
+        return JSON.parse(str);
+      } catch (e) {
+        return str;
+      }
     }
 
     return buf.toString();
   },
 });
 
-const getDeviceID = () => `e${Math.random().toFixed(15).toString().substring(2, 17)}`;
+const getDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
 
 class WeixinBot extends EventEmitter {
   constructor() {
     super();
+
+    this.uuid = '';
+    this.redirectUri = '';
+    this.skey = '';
+    this.wxsid = '';
+    this.wxuin = '';
+    this.passTicket = '';
+    this.baseRequest = null;
+    this.my = null;
+    this.syncKey = '';
+    this.memberList = [];
   }
 
   async run() {
@@ -68,9 +84,19 @@ class WeixinBot extends EventEmitter {
 
     while (await this.waitForLogin() !== 200) continue;
 
-    await this.fetchTickets();
+    try {
+      await this.fetchTickets();
+      await this.webwxinit();
+      await this.fetchContact();
+    } catch (e) {
+      console.error(e);
+      // retry login
+      this.run();
+      return;
+    }
 
-    await this.webwxinit();
+    console.log(this.my);
+    console.log(this.memberList.length);
   }
 
   async fetchUUID() {
@@ -83,53 +109,16 @@ class WeixinBot extends EventEmitter {
     return uuid;
   }
 
-  async fetchTickets() {
-    let result;
-    try {
-      result = await rp(`${this.redirectUri}&fun=new&version=v2`);
-    } catch (e) {
-      console.log(e);
-      // network error, retry
-      this.runAfterLogin();
-      return;
-    }
-
-    if (!/<ret>0<\/ret>/.test(result)) {
-      console.log('Get skey failed, restart login');
-      this.run();
-      return;
-    }
-
-    // const retM = result.match(/<ret>(.*)<\/ret>/);
-    // const scriptM = result.match(/<script>(.*)<\/script>/);
-    const skeyM = result.match(/<skey>(.*)<\/skey>/);
-    const wxsidM = result.match(/<wxsid>(.*)<\/wxsid>/);
-    const wxuinM = result.match(/<wxuin>(.*)<\/wxuin>/);
-    const passTicketM = result.match(/<pass_ticket>(.*)<\/pass_ticket>/);
-    // const redirectUrlM = result.match(/<redirecturl>(.*)<\/redirecturl>/);
-
-    this.skey = skeyM && skeyM[1];
-    this.wxsid = wxsidM && wxsidM[1];
-    this.wxuin = wxuinM && wxuinM[1];
-    this.passTicket = passTicketM && passTicketM[1];
-
-    this.baseRequest = {
-      Uin: parseInt(this.wxuin, 10),
-      Sid: this.wxsid,
-      Skey: this.skey,
-      DeviceID: getDeviceID(),
-    };
-  }
-
   async waitForLogin() {
     const options = {
-      uri: `${conf.API_login}?loginicon=true&uuid=${this.uuid}&tip=1&r=${~new Date}`,
+      uri: conf.API_login + '?loginicon=true&uuid=' + this.uuid + '&tip=1&r=' + ~new Date,
       timeout: 35e3,
     };
 
     const loginHtml = await rp(options);
     if (!/code=(\d{3});/.test(loginHtml)) {
-      throw new Error('check login failed');
+      // retry
+      return this.waitForLogin();
     }
 
     const loginCode = parseInt(/code=(\d{3});/.exec(loginHtml)[1], 10);
@@ -173,7 +162,73 @@ class WeixinBot extends EventEmitter {
       return;
     }
 
-    console.log(result);
+    if (!result || !result.BaseResponse || result.BaseResponse.Ret !== 0) {
+      throw new Error('Init Webwx failed');
+    }
+
+    this.my = result.User;
+    this.syncKey = result.SyncKey;
+  }
+
+  async fetchTickets() {
+    let result;
+    try {
+      result = await rp(this.redirectUri + '&fun=new&version=v2');
+    } catch (e) {
+      // network error, retry
+      this.fetchTickets();
+      return;
+    }
+
+    if (!/<ret>0<\/ret>/.test(result)) {
+      throw new Error('Get skey failed, restart login');
+    }
+
+    // const retM = result.match(/<ret>(.*)<\/ret>/);
+    // const scriptM = result.match(/<script>(.*)<\/script>/);
+    const skeyM = result.match(/<skey>(.*)<\/skey>/);
+    const wxsidM = result.match(/<wxsid>(.*)<\/wxsid>/);
+    const wxuinM = result.match(/<wxuin>(.*)<\/wxuin>/);
+    const passTicketM = result.match(/<pass_ticket>(.*)<\/pass_ticket>/);
+    // const redirectUrlM = result.match(/<redirecturl>(.*)<\/redirecturl>/);
+
+    this.skey = skeyM && skeyM[1];
+    this.wxsid = wxsidM && wxsidM[1];
+    this.wxuin = wxuinM && wxuinM[1];
+    this.passTicket = passTicketM && passTicketM[1];
+
+    this.baseRequest = {
+      Uin: parseInt(this.wxuin, 10),
+      Sid: this.wxsid,
+      Skey: this.skey,
+      DeviceID: getDeviceID(),
+    };
+  }
+
+  async fetchContact() {
+    let result;
+    try {
+      result = await rp({
+        uri: conf.API_webwxgetcontact,
+        qs: {
+          skey: this.skey,
+          pass_ticket: this.passTicket,
+          seq: 0,
+          r: ~new Date,
+        },
+      });
+    } catch (e) {
+      console.error(e);
+      // network error retry
+      this.fetchContact();
+      return;
+    }
+
+    if (!result || !result.BaseResponse || result.BaseResponse.Ret !== 0) {
+      throw new Error('Fetch contact fail');
+    }
+
+    this.memberList = result.MemberList;
   }
 }
 
