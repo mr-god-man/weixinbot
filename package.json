@@ -14,7 +14,9 @@
   "author": "feit",
   "license": "MIT",
   "dependencies": {
-    "request-promise": "^2.0.0"
+    "request-promise": "^2.0.0",
+    "touch": "^1.0.0",
+    "tough-cookie-filestore": "0.0.1"
   },
   "devDependencies": {
     "babel-core": "^6.4.5",
