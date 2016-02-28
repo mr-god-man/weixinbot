@@ -1,4 +1,5 @@
-/* eslint-disable quote-props,no-constant-condition,prefer-template,consistent-return,new-cap */
+/* eslint-disable quote-props,no-constant-condition,
+  prefer-template,consistent-return,new-cap,no-param-reassign */
 import url from 'url';
 import path from 'path';
 import zlib from 'zlib';
@@ -13,8 +14,9 @@ import FileCookieStore from 'tough-cookie-filestore';
 
 import { getUrls, CODES } from './conf';
 
-let URLS = getUrls({});
+Promise.promisifyAll(Datastore.prototype);
 const debug = Debug('weixinbot');
+let URLS = getUrls({});
 
 const pushHostList = [
   'webpush.weixin.qq.com',
@@ -62,11 +64,6 @@ const rp = RequestPromise.defaults({
 });
 
 const makeDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
-
-Promise.promisify(Datastore.prototype.find);
-Promise.promisify(Datastore.prototype.findOne);
-Promise.promisify(Datastore.prototype.count);
-Promise.promisify(Datastore.prototype.update);
 
 class WeixinBot extends EventEmitter {
   constructor(options = {}) {
@@ -124,6 +121,8 @@ class WeixinBot extends EventEmitter {
       this.uuid = await this.fetchUUID();
     } catch (e) {
       debug('fetch uuid error', e);
+      this.run();
+      return;
     }
 
     if (!this.uuid) {
@@ -489,10 +488,11 @@ class WeixinBot extends EventEmitter {
           type: 'ex',
           r: +new Date,
         },
+        json: true,
         body: {
           BaseRequest: this.baseRequest,
-          'Count': 1,
-          'List': [{ UserName: groupId, EncryChatRoomId: '' }],
+          Count: 1,
+          List: [{ UserName: groupId, EncryChatRoomId: '' }],
         },
       });
     } catch (e) {
@@ -506,25 +506,52 @@ class WeixinBot extends EventEmitter {
       throw new Error('Fetch batchgetcontact fail');
     }
 
-    debug(data);
-
     if (!data.ContactList.length) {
       throw new Error('batchgetcontact not found contact');
     }
 
-    const { MemberList } = data.ContactList[0];
+    const Group = data.ContactList[0];
+    this.Groups.insert(Group);
+
+    const { MemberList } = Group;
     this.GroupMembers.insert(MemberList);
+    return Group;
   }
 
-  async getMemberName(id) {
-    this.Members.findOne({ UserName: id }, (err, member) => {
+  async getMember(id, groupId) {
+    let member = await this.Members.findOneAsync({ UserName: id });
 
-    });
+    if (member) return member;
+
+    if (groupId) {
+      await this.fetchBatchgetContact(id);
+      member = await this.GroupMembers.findOneAsync({ UserName: id });
+    }
+
+    return member;
+  }
+
+  async getGroup(id) {
+    const group = await this.Groups.findOneAsync({ UserName: id });
+
+    if (group) return group;
+
+    return await this.fetchBatchgetContact(id);
   }
 
   async handleMsg(msg) {
+    if (msg.FromUserName.includes('@@')) {
+      const userId = msg.Content.match(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/)[1];
+      msg.Member = await this.getMember(userId, msg.FromUserName);
+      msg.Group = await this.getGroup(msg.FromUserName);
+      msg.Content = msg.Content.replace(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/, '');
 
-    this.emit('message', msg);
+      this.emit('group', msg);
+      return;
+    }
+
+    msg.Member = await this.getMember(msg.FromUserName);
+    this.emit('friend', msg);
     // if (msg.MsgType === CODES.MSGTYPE_SYSNOTICE) {
     //   return;
     // }
