@@ -1,44 +1,49 @@
 /* eslint-disable prefer-template */
-const protocol = 'https:';
-const host = 'wx2.qq.com';
-const weixinUrl = 'weixin.qq.com';
-const fileUrl = 'file2.wx.qq.com';
-const webPushUrl = 'webpush2.weixin.qq.com';
 
-export default {
-  LANG: 'zh_CN',
-  RES_PATH: '/zh_CN/htmledition/v2/',
-  QRCODE_PATH: 'https://login.' + weixinUrl + '/qrcode/',
-  API_jsLogin: 'https://login.' + weixinUrl + '/jslogin?appid=wx782c26e4c19acffb&redirect_uri=' + encodeURIComponent(protocol + '//' + host + '/cgi-bin/mmwebwx-bin/webwxnewloginpage') + '&fun=new&lang=' + 'zh_CN',
-  API_login: 'https://login.' + weixinUrl + '/cgi-bin/mmwebwx-bin/login',
-  API_synccheck: 'https://' + webPushUrl + '/cgi-bin/mmwebwx-bin/synccheck',
-  API_webwxdownloadmedia: 'https://' + fileUrl + '/cgi-bin/mmwebwx-bin/webwxgetmedia',
-  API_webwxuploadmedia: 'https://' + fileUrl + '/cgi-bin/mmwebwx-bin/webwxuploadmedia',
-  API_webwxpreview: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxpreview',
-  API_webwxinit: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxinit?r=' + ~new Date,
-  API_webwxgetcontact: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxgetcontact',
-  API_webwxsync: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxsync',
-  API_webwxbatchgetcontact: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxbatchgetcontact',
-  API_webwxgeticon: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxgeticon',
-  API_webwxsendmsg: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxsendmsg',
-  API_webwxsendmsgimg: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxsendmsgimg',
-  API_webwxsendemoticon: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxsendemoticon',
-  API_webwxsendappmsg: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxsendappmsg',
-  API_webwxgetheadimg: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxgetheadimg',
-  API_webwxgetmsgimg: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxgetmsgimg',
-  API_webwxgetmedia: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxgetmedia',
-  API_webwxgetvideo: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxgetvideo',
-  API_webwxlogout: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxlogout',
-  API_webwxgetvoice: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxgetvoice',
-  API_webwxupdatechatroom: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxupdatechatroom',
-  API_webwxcreatechatroom: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxcreatechatroom',
-  API_webwxstatusnotify: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxstatusnotify',
-  API_webwxcheckurl: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxcheckurl',
-  API_webwxverifyuser: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxverifyuser',
-  API_webwxfeedback: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxsendfeedback',
-  API_webwxreport: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxstatreport',
-  API_webwxsearch: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxsearchcontact',
-  API_webwxoplog: 'https://' + host + '/cgi-bin/mmwebwx-bin/webwxoplog',
+export function getUrls({
+  protocol = 'https',
+  baseHost = 'wx.qq.com',
+  weixinHost = 'weixin.qq.com',
+  fileHost = 'file.wx.qq.com',
+  pushHost = 'webpush.weixin.qq.com',
+}) {
+  return {
+    LANG: 'zh_CN',
+    QRCODE_PATH: 'https://login.weixin.qq.com/qrcode/',
+    API_jsLogin: 'https://login.' + weixinHost + '/jslogin?appid=wx782c26e4c19acffb&redirect_uri=' + encodeURIComponent(protocol + '//' + baseHost + '/cgi-bin/mmwebwx-bin/webwxnewloginpage') + '&fun=new&lang=' + 'zh_CN',
+    API_login: 'https://login.' + weixinHost + '/cgi-bin/mmwebwx-bin/login',
+    API_synccheck: 'https://' + pushHost + '/cgi-bin/mmwebwx-bin/synccheck',
+    API_webwxdownloadmedia: 'https://' + fileHost + '/cgi-bin/mmwebwx-bin/webwxgetmedia',
+    API_webwxuploadmedia: 'https://' + fileHost + '/cgi-bin/mmwebwx-bin/webwxuploadmedia',
+    API_webwxpreview: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxpreview',
+    API_webwxinit: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxinit',
+    API_webwxgetcontact: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxgetcontact',
+    API_webwxsync: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxsync',
+    API_webwxbatchgetcontact: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxbatchgetcontact',
+    API_webwxgeticon: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxgeticon',
+    API_webwxsendmsg: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxsendmsg',
+    API_webwxsendmsgimg: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxsendmsgimg',
+    API_webwxsendemoticon: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxsendemoticon',
+    API_webwxsendappmsg: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxsendappmsg',
+    API_webwxgetheadimg: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxgetheadimg',
+    API_webwxgetmsgimg: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxgetmsgimg',
+    API_webwxgetmedia: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxgetmedia',
+    API_webwxgetvideo: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxgetvideo',
+    API_webwxlogout: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxlogout',
+    API_webwxgetvoice: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxgetvoice',
+    API_webwxupdatechatroom: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxupdatechatroom',
+    API_webwxcreatechatroom: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxcreatechatroom',
+    API_webwxstatusnotify: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxstatusnotify',
+    API_webwxcheckurl: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxcheckurl',
+    API_webwxverifyuser: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxverifyuser',
+    API_webwxfeedback: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxsendfeedback',
+    API_webwxreport: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxstatreport',
+    API_webwxsearch: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxsearchcontact',
+    API_webwxoplog: 'https://' + baseHost + '/cgi-bin/mmwebwx-bin/webwxoplog',
+  };
+}
+
+export const CODES = {
   oplogCmdId: {
     TOPCONTACT: 3,
     MODREMARKNAME: 2,
