@@ -1,12 +1,16 @@
-/* eslint-disable no-console,quote-props,no-constant-condition,prefer-template,consistent-return */
+/* eslint-disable quote-props,no-constant-condition,prefer-template,consistent-return,new-cap */
 import url from 'url';
 import path from 'path';
 import zlib from 'zlib';
+import Debug from 'debug';
+import Datastore from 'nedb';
 import nodemailer from 'nodemailer';
 import RequestPromise from 'request-promise';
 import FileCookieStore from 'tough-cookie-filestore';
 import EventEmitter from 'events';
 import touch from 'touch';
+
+const debug = Debug('weixinbot');
 
 import { getUrls, CODES } from './conf';
 let URLS = getUrls({});
@@ -63,7 +67,7 @@ class WeixinBot extends EventEmitter {
     super();
 
     if (!options.receiver) {
-      throw new Error('receiver is required for get qrcode img');
+      throw new Error('receiver is required for receive qrcode img');
     }
 
     this.baseHost = '';
@@ -78,12 +82,22 @@ class WeixinBot extends EventEmitter {
     this.my = null;
     this.syncKey = null;
     this.formateSyncKey = '';
-    this.memberList = [];
-    this.contactList = [];
-    this.groupList = [];
-    this.groupMemeberList = [];
-    this.brandList = []; // 公众帐号
-    this.spList = []; // 特殊帐号
+
+    // member store
+    this.Members = new Datastore();
+    this.Contacts = new Datastore();
+    this.Groups = new Datastore();
+    this.GroupMembers = new Datastore();
+    this.Brands = new Datastore(); // 公众帐号
+    this.SPs = new Datastore(); // 特殊帐号
+
+    // indexing
+    this.Members.ensureIndex({ fieldName: 'UserName', unique: true });
+    this.Contacts.ensureIndex({ fieldName: 'UserName', unique: true });
+    this.Groups.ensureIndex({ fieldName: 'UserName', unique: true });
+    this.GroupMembers.ensureIndex({ fieldName: 'UserName', unique: true });
+    this.Brands.ensureIndex({ fieldName: 'UserName', unique: true });
+    this.SPs.ensureIndex({ fieldName: 'UserName', unique: true });
 
     this.transporter = nodemailer.createTransport(options.mail || {
       service: 'QQex',
@@ -98,53 +112,55 @@ class WeixinBot extends EventEmitter {
   }
 
   async run() {
-    console.log('Start login');
+    debug('Start login');
 
     try {
       this.uuid = await this.fetchUUID();
     } catch (e) {
-      console.error(e);
+      debug('fetch uuid error', e);
     }
 
     if (!this.uuid) {
-      console.log('Get uuid failed, restart login');
+      debug('Get uuid failed, restart login');
       this.run();
       return;
     }
 
     const qrcodeUrl = URLS.QRCODE_PATH + this.uuid;
+
+    // TODO resend email when callback with err
     this.transporter.sendMail({
       from: 'WeixinBot <weixinbot@feit.me>',
       to: this.receiver,
       subject: 'WeixinBot 请求登录',
       html: `<img src="${qrcodeUrl}" height="256" width="256" />`,
-    }, (err) => {
-      if (err) console.error(err);
+    }, (e) => {
+      if (e) debug('send email error', e);
     });
 
     while (await this.checkLoginStep() !== 200) continue;
 
     try {
-      console.log('fetching tickets');
+      debug('fetching tickets');
       await this.fetchTickets();
-      console.log('fetch tickets complete');
+      debug('fetch tickets complete');
 
-      console.log('webwxinit...');
+      debug('webwxinit...');
       await this.webwxinit();
-      console.log('webwxinit complete');
+      debug('webwxinit complete');
 
-      console.log('notify mobile...');
+      debug('notify mobile...');
       await this.notifyMobile();
-      console.log('notify mobile complete');
+      debug('notify mobile complete');
 
-      console.log('fetching contact');
+      debug('fetching contact');
       await this.fetchContact();
-      console.log('fetch contact complete');
+      debug('fetch contact complete');
 
       // await this.fetchBatchgetContact();
       this.pushHost = await this.lookupSyncCheckHost();
     } catch (e) {
-      console.error(e);
+      debug('main step occur error', e);
       // retry login
       this.run();
       return;
@@ -152,14 +168,14 @@ class WeixinBot extends EventEmitter {
 
     URLS = getUrls({ baseHost: this.baseHost, pushHost: this.pushHost });
 
-    console.log('start msg loop');
+    debug('start msg loop');
     this.runLoop();
   }
 
   async runLoop() {
     const { selector, retcode } = await this.syncCheck();
     if (retcode !== '0') {
-      console.log('你在其他地方登录或登出了微信，正在尝试重新登录...');
+      debug('你在其他地方登录或登出了微信，正在尝试重新登录...');
       this.run();
       return;
     }
@@ -174,52 +190,52 @@ class WeixinBot extends EventEmitter {
   }
 
   async checkLoginStep() {
-    let result;
+    let data;
     try {
-      result = await rp({
+      data = await rp({
         uri: URLS.API_login + `?uuid=${this.uuid}&tip=1&r=${+new Date}`,
         timeout: 35e3,
       });
     } catch (e) {
-      console.error(e);
+      debug('checkLoginStep network error', e);
       this.checkLoginStep();
       return;
     }
 
-    if (!/code=(\d{3});/.test(result)) {
+    if (!/code=(\d{3});/.test(data)) {
       // retry
       return this.checkLoginStep();
     }
 
-    const loginCode = parseInt(result.match(/code=(\d{3});/)[1], 10);
+    const loginCode = parseInt(data.match(/code=(\d{3});/)[1], 10);
 
     switch (loginCode) {
       case 200:
-        console.log('Confirm login!');
-        this.redirectUri = result.match(/redirect_uri="(.+)";$/)[1] + '&fun=new&version=v2';
+        debug('Confirm login!');
+        this.redirectUri = data.match(/redirect_uri="(.+)";$/)[1] + '&fun=new&version=v2';
         this.baseHost = url.parse(this.redirectUri).host;
         URLS = getUrls({ baseHost: this.baseHost });
         break;
 
       case 201:
-        // console.log('QRcode scaned!');
+        debug('QRcode scaned!');
         break;
 
       case 408:
-        console.log('Check login timeout, retry...');
+        debug('Check login timeout, retry...');
         break;
 
       default:
-        console.error('Unkonw status, retry...');
+        debug('Unkonw status, retry...');
     }
 
     return loginCode;
   }
 
   async webwxinit() {
-    let result;
+    let data;
     try {
-      result = await rp({
+      data = await rp({
         uri: URLS.API_webwxinit,
         method: 'POST',
         json: true,
@@ -228,25 +244,25 @@ class WeixinBot extends EventEmitter {
         },
       });
     } catch (e) {
-      console.error(e);
+      debug('webwxinit network error', e);
       // network error retry
       this.webwxinit();
       return;
     }
 
-    if (!result || !result.BaseResponse || result.BaseResponse.Ret !== 0) {
+    if (!data || !data.BaseResponse || data.BaseResponse.Ret !== 0) {
       throw new Error('Init Webwx failed');
     }
 
-    this.my = result.User;
-    this.syncKey = result.SyncKey;
+    this.my = data.User;
+    this.syncKey = data.SyncKey;
     this.formateSyncKey = this.syncKey.List.map((item) => item.Key + '_' + item.Val).join('|');
   }
 
   async webwxsync() {
-    let result;
+    let data;
     try {
-      result = await rp({
+      data = await rp({
         uri: URLS.API_webwxsync,
         method: 'POST',
         qs: {
@@ -261,23 +277,23 @@ class WeixinBot extends EventEmitter {
         },
       });
     } catch (e) {
-      console.error(e);
+      debug('webwxsync network error', e);
       // network error retry
       this.webwxsync();
       return;
     }
 
-    this.syncKey = result.SyncKey;
+    this.syncKey = data.SyncKey;
     this.formateSyncKey = this.syncKey.List.map((item) => item.Key + '_' + item.Val).join('|');
 
-    result.AddMsgList.forEach((msg) => this.handleMsg(msg));
+    data.AddMsgList.forEach((msg) => this.handleMsg(msg));
   }
 
   async lookupSyncCheckHost() {
     for (const host of pushHostList) {
-      let result;
+      let data;
       try {
-        result = await rp({
+        data = await rp({
           uri: 'https://' + host + '/cgi-bin/mmwebwx-bin/synccheck',
           qs: {
             r: +new Date,
@@ -290,20 +306,20 @@ class WeixinBot extends EventEmitter {
           timeout: 35e3,
         });
       } catch (e) {
-        console.error(e);
+        debug('lookupSyncCheckHost network error', e);
         // network error retry
         return this.lookupSyncCheckHost();
       }
 
-      const retcode = result.match(/retcode:"(\d+)"/)[1];
+      const retcode = data.match(/retcode:"(\d+)"/)[1];
       if (retcode === '0') return host;
     }
   }
 
   async syncCheck() {
-    let result;
+    let data;
     try {
-      result = await rp({
+      data = await rp({
         uri: URLS.API_synccheck,
         qs: {
           r: +new Date,
@@ -316,21 +332,21 @@ class WeixinBot extends EventEmitter {
         timeout: 35e3,
       });
     } catch (e) {
-      console.error(e);
+      debug('synccheck network error', e);
       // network error retry
       return this.syncCheck();
     }
 
-    const retcode = result.match(/retcode:"(\d+)"/)[1];
-    const selector = result.match(/selector:"(\d+)"/)[1];
+    const retcode = data.match(/retcode:"(\d+)"/)[1];
+    const selector = data.match(/selector:"(\d+)"/)[1];
 
     return { retcode, selector };
   }
 
   async notifyMobile() {
-    let result;
+    let data;
     try {
-      result = await rp({
+      data = await rp({
         uri: URLS.API_webwxstatusnotify,
         method: 'POST',
         json: true,
@@ -343,48 +359,58 @@ class WeixinBot extends EventEmitter {
         },
       });
     } catch (e) {
-      console.error(e);
+      debug('notify mobile network error', e);
       // network error retry
       this.notifyMobile();
       return;
     }
 
-    if (!result || !result.BaseResponse || result.BaseResponse.Ret !== 0) {
+    if (!data || !data.BaseResponse || data.BaseResponse.Ret !== 0) {
       throw new Error('Notify mobile fail');
     }
   }
 
   async fetchUUID() {
-    const uuidHtml = await rp(URLS.API_jsLogin);
-    if (!/uuid = "(.+)";$/.test(uuidHtml)) {
+    let data;
+    try {
+      data = await rp(URLS.API_jsLogin);
+    } catch (e) {
+      debug('fetch uuid network error', e);
+      // network error retry
+      this.fetchUUID();
+      return;
+    }
+
+    if (!/uuid = "(.+)";$/.test(data)) {
       throw new Error('get uuid failed');
     }
 
-    const uuid = uuidHtml.match(/uuid = "(.+)";$/)[1];
+    const uuid = data.match(/uuid = "(.+)";$/)[1];
     return uuid;
   }
 
   async fetchTickets() {
-    let result;
+    let data;
     try {
-      result = await rp(this.redirectUri);
+      data = await rp(this.redirectUri);
     } catch (e) {
+      debug('fetch tickets network error', e);
       // network error, retry
       this.fetchTickets();
       return;
     }
 
-    if (!/<ret>0<\/ret>/.test(result)) {
+    if (!/<ret>0<\/ret>/.test(data)) {
       throw new Error('Get skey failed, restart login');
     }
 
-    // const retM = result.match(/<ret>(.*)<\/ret>/);
-    // const scriptM = result.match(/<script>(.*)<\/script>/);
-    const skeyM = result.match(/<skey>(.*)<\/skey>/);
-    const wxsidM = result.match(/<wxsid>(.*)<\/wxsid>/);
-    const wxuinM = result.match(/<wxuin>(.*)<\/wxuin>/);
-    const passTicketM = result.match(/<pass_ticket>(.*)<\/pass_ticket>/);
-    // const redirectPATHSM = result.match(/<redirectPATHS>(.*)<\/redirectPATHS>/);
+    // const retM = data.match(/<ret>(.*)<\/ret>/);
+    // const scriptM = data.match(/<script>(.*)<\/script>/);
+    const skeyM = data.match(/<skey>(.*)<\/skey>/);
+    const wxsidM = data.match(/<wxsid>(.*)<\/wxsid>/);
+    const wxuinM = data.match(/<wxuin>(.*)<\/wxuin>/);
+    const passTicketM = data.match(/<pass_ticket>(.*)<\/pass_ticket>/);
+    // const redirectPATHSM = data.match(/<redirectPATHS>(.*)<\/redirectPATHS>/);
 
     this.skey = skeyM && skeyM[1];
     this.sid = wxsidM && wxsidM[1];
@@ -400,9 +426,9 @@ class WeixinBot extends EventEmitter {
   }
 
   async fetchContact() {
-    let result;
+    let data;
     try {
-      result = await rp({
+      data = await rp({
         uri: URLS.API_webwxgetcontact,
         qs: {
           skey: this.skey,
@@ -412,45 +438,45 @@ class WeixinBot extends EventEmitter {
         },
       });
     } catch (e) {
-      console.error(e);
+      debug('fetch contact network error', e);
       // network error retry
       this.fetchContact();
       return;
     }
 
-    if (!result || !result.BaseResponse || result.BaseResponse.Ret !== 0) {
+    if (!data || !data.BaseResponse || data.BaseResponse.Ret !== 0) {
       throw new Error('Fetch contact fail');
     }
 
-    this.memberList = result.MemberList;
-    this.memberList.forEach((member) => {
+    this.Members.insert(data.MemberList);
+    data.MemberList.forEach((member) => {
       const userName = member.UserName;
 
       if (member.VerifyFlag & CODES.MM_USERATTRVERIFYFALG_BIZ_BRAND) {
-        this.brandList.push(member);
+        this.Brands.insert(member);
         return;
       }
 
       if (spAccounts.includes(userName) || /@qqim$/.test(userName)) {
-        this.spList.push(member);
+        this.SPs.insert(member);
         return;
       }
 
       if (userName.includes('@@')) {
-        this.groupList.push(member);
+        this.Groups.insert(member);
         return;
       }
 
       if (userName !== this.my.UserName) {
-        this.contactList.push(member);
+        this.Contacts.insert(member);
       }
     });
   }
 
   async fetchBatchgetContact() {
-    let result;
+    let data;
     try {
-      result = await rp({
+      data = await rp({
         method: 'POST',
         uri: URLS.API_webwxbatchgetcontact,
         qs: {
@@ -462,17 +488,17 @@ class WeixinBot extends EventEmitter {
         },
       });
     } catch (e) {
-      console.error(e);
+      debug('fetch batchgetcontact network error', e);
       // network error retry
-      this.fetchContact();
+      this.fetchBatchgetContact();
       return;
     }
 
-    if (!result || !result.BaseResponse || result.BaseResponse.Ret !== 0) {
+    if (!data || !data.BaseResponse || data.BaseResponse.Ret !== 0) {
       throw new Error('Fetch batchgetcontact fail');
     }
 
-    this.memberList = result.MemberList;
+    this.memberList = data.MemberList;
   }
 
   async handleMsg(msg) {
@@ -545,8 +571,8 @@ class WeixinBot extends EventEmitter {
       }
 
       callback();
-    }).catch((err) => {
-      console.error(err);
+    }).catch((e) => {
+      debug('send text network error', e);
       // network error, retry
       this.sendText(to, content, callback);
       return;
