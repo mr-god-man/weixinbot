@@ -3,17 +3,18 @@ import url from 'url';
 import path from 'path';
 import zlib from 'zlib';
 import Debug from 'debug';
+import touch from 'touch';
 import Datastore from 'nedb';
+import Promise from 'bluebird';
+import EventEmitter from 'events';
 import nodemailer from 'nodemailer';
 import RequestPromise from 'request-promise';
 import FileCookieStore from 'tough-cookie-filestore';
-import EventEmitter from 'events';
-import touch from 'touch';
-
-const debug = Debug('weixinbot');
 
 import { getUrls, CODES } from './conf';
+
 let URLS = getUrls({});
+const debug = Debug('weixinbot');
 
 const pushHostList = [
   'webpush.weixin.qq.com',
@@ -60,7 +61,12 @@ const rp = RequestPromise.defaults({
   },
 });
 
-const getDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
+const makeDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
+
+Promise.promisify(Datastore.prototype.find);
+Promise.promisify(Datastore.prototype.findOne);
+Promise.promisify(Datastore.prototype.count);
+Promise.promisify(Datastore.prototype.update);
 
 class WeixinBot extends EventEmitter {
   constructor(options = {}) {
@@ -300,7 +306,7 @@ class WeixinBot extends EventEmitter {
             skey: this.skey,
             sid: this.sid,
             uin: this.uin,
-            deviceid: getDeviceID(),
+            deviceid: makeDeviceID(),
             synckey: this.formateSyncKey,
           },
           timeout: 35e3,
@@ -326,7 +332,7 @@ class WeixinBot extends EventEmitter {
           skey: this.skey,
           sid: this.sid,
           uin: this.uin,
-          deviceid: getDeviceID(),
+          deviceid: makeDeviceID(),
           synckey: this.formateSyncKey,
         },
         timeout: 35e3,
@@ -410,7 +416,7 @@ class WeixinBot extends EventEmitter {
     const wxsidM = data.match(/<wxsid>(.*)<\/wxsid>/);
     const wxuinM = data.match(/<wxuin>(.*)<\/wxuin>/);
     const passTicketM = data.match(/<pass_ticket>(.*)<\/pass_ticket>/);
-    // const redirectPATHSM = data.match(/<redirectPATHS>(.*)<\/redirectPATHS>/);
+    // const redirectUrl = data.match(/<redirect_url>(.*)<\/redirect_url>/);
 
     this.skey = skeyM && skeyM[1];
     this.sid = wxsidM && wxsidM[1];
@@ -421,7 +427,7 @@ class WeixinBot extends EventEmitter {
       Uin: parseInt(this.uin, 10),
       Sid: this.sid,
       Skey: this.skey,
-      DeviceID: getDeviceID(),
+      DeviceID: makeDeviceID(),
     };
   }
 
@@ -473,7 +479,7 @@ class WeixinBot extends EventEmitter {
     });
   }
 
-  async fetchBatchgetContact() {
+  async fetchBatchgetContact(groupId) {
     let data;
     try {
       data = await rp({
@@ -485,6 +491,8 @@ class WeixinBot extends EventEmitter {
         },
         body: {
           BaseRequest: this.baseRequest,
+          'Count': 1,
+          'List': [{ UserName: groupId, EncryChatRoomId: '' }],
         },
       });
     } catch (e) {
@@ -498,10 +506,24 @@ class WeixinBot extends EventEmitter {
       throw new Error('Fetch batchgetcontact fail');
     }
 
-    this.memberList = data.MemberList;
+    debug(data);
+
+    if (!data.ContactList.length) {
+      throw new Error('batchgetcontact not found contact');
+    }
+
+    const { MemberList } = data.ContactList[0];
+    this.GroupMembers.insert(MemberList);
+  }
+
+  async getMemberName(id) {
+    this.Members.findOne({ UserName: id }, (err, member) => {
+
+    });
   }
 
   async handleMsg(msg) {
+
     this.emit('message', msg);
     // if (msg.MsgType === CODES.MSGTYPE_SYSNOTICE) {
     //   return;
