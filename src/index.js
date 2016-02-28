@@ -521,38 +521,38 @@ class WeixinBot extends EventEmitter {
     // }
   }
 
-  async sendText(to, content) {
+  sendText(to, content, callback) {
     const clientMsgId = (+new Date + Math.random().toFixed(3)).replace('.', '');
 
-    let result;
-    try {
-      result = await rp({
-        uri: URLS.API_webwxsendmsg,
-        method: 'POST',
-        json: true,
-        body: {
-          BaseRequest: this.baseRequest,
-          Msg: {
-            Type: CODES.MSGTYPE_TEXT,
-            Content: content,
-            FromUserName: this.my.UserName,
-            ToUserName: to,
-            LocalID: clientMsgId,
-            ClientMsgId: clientMsgId,
-          },
+    rp({
+      uri: URLS.API_webwxsendmsg,
+      method: 'POST',
+      json: true,
+      body: {
+        BaseRequest: this.baseRequest,
+        Msg: {
+          Type: CODES.MSGTYPE_TEXT,
+          Content: content,
+          FromUserName: this.my.UserName,
+          ToUserName: to,
+          LocalID: clientMsgId,
+          ClientMsgId: clientMsgId,
         },
-      });
-    } catch (e) {
-      console.error(e);
-      // network error, retry
-      this.sendText(to, content);
-      return;
-    }
+      },
+    }).then((data) => {
+      if (!data || !data.BaseResponse || data.BaseResponse.Ret !== 0) {
+        return callback(new Error('Send text fail'));
+      }
 
-    if (!result || !result.BaseResponse || result.BaseResponse.Ret !== 0) {
-      throw new Error('send text fail');
-    }
+      callback();
+    }).catch((err) => {
+      console.error(err);
+      // network error, retry
+      this.sendText(to, content, callback);
+      return;
+    });
   }
 }
 
-export default WeixinBot;
+// compatible nodejs require
+module.exports = WeixinBot;
