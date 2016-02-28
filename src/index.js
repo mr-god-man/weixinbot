@@ -93,6 +93,8 @@ class WeixinBot extends EventEmitter {
       },
     });
     this.receiver = options.receiver;
+
+    Object.assign(this, CODES);
   }
 
   async run() {
