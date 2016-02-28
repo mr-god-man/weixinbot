@@ -2,10 +2,10 @@
 import url from 'url';
 import path from 'path';
 import zlib from 'zlib';
+import nodemailer from 'nodemailer';
 import RequestPromise from 'request-promise';
 import FileCookieStore from 'tough-cookie-filestore';
 import EventEmitter from 'events';
-import { exec } from 'child_process';
 import touch from 'touch';
 
 import { getUrls, CODES } from './conf';
@@ -59,8 +59,12 @@ const rp = RequestPromise.defaults({
 const getDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
 
 class WeixinBot extends EventEmitter {
-  constructor() {
+  constructor(options = {}) {
     super();
+
+    if (!options.receiver) {
+      throw new Error('receiver is required for get qrcode img');
+    }
 
     this.baseHost = '';
     this.pushHost = '';
@@ -80,6 +84,15 @@ class WeixinBot extends EventEmitter {
     this.groupMemeberList = [];
     this.brandList = []; // 公众帐号
     this.spList = []; // 特殊帐号
+
+    this.transporter = nodemailer.createTransport(options.mail || {
+      service: 'QQex',
+      auth: {
+        user: 'weixinbot@feit.me',
+        pass: 'l53y$cf^7m3wth%^',
+      },
+    });
+    this.receiver = options.receiver;
   }
 
   async run() {
@@ -97,11 +110,14 @@ class WeixinBot extends EventEmitter {
       return;
     }
 
-    const qrcodePATHS = URLS.QRCODE_PATH + this.uuid;
-    exec(`open ${qrcodePATHS}`, (err) => {
-      if (err) {
-        console.log(`自动打开浏览器失败，请手动打开下面这个网址并扫描\n ${qrcodePATHS}`);
-      }
+    const qrcodeUrl = URLS.QRCODE_PATH + this.uuid;
+    this.transporter.sendMail({
+      from: 'WeixinBot <weixinbot@feit.me>',
+      to: this.receiver,
+      subject: 'WeixinBot 请求登录',
+      html: `<img src="${qrcodeUrl}" height="256" width="256" />`,
+    }, (err) => {
+      if (err) console.error(err);
     });
 
     while (await this.checkLoginStep() !== 200) continue;
@@ -440,7 +456,7 @@ class WeixinBot extends EventEmitter {
           r: +new Date,
         },
         body: {
-
+          BaseRequest: this.baseRequest,
         },
       });
     } catch (e) {
@@ -458,48 +474,49 @@ class WeixinBot extends EventEmitter {
   }
 
   async handleMsg(msg) {
-    if (msg.MsgType === CODES.MSGTYPE_SYSNOTICE) {
-      return;
-    }
+    this.emit('message', msg);
+    // if (msg.MsgType === CODES.MSGTYPE_SYSNOTICE) {
+    //   return;
+    // }
 
-    switch (msg.MsgType) {
-      case CODES.MSGTYPE_APP:
-        break;
-      case CODES.MSGTYPE_EMOTICON:
-        break;
-      case CODES.MSGTYPE_IMAGE:
-        break;
-      case CODES.MSGTYPE_VOICE:
-        break;
-      case CODES.MSGTYPE_VIDEO:
-        break;
-      case CODES.MSGTYPE_MICROVIDEO:
-        break;
-      case CODES.MSGTYPE_TEXT:
-        try {
-          await this.sendText(msg.FromUserName, msg.Content);
-        } catch (e) {
-          console.error(e);
-        }
-        break;
-      case CODES.MSGTYPE_RECALLED:
-        break;
-      case CODES.MSGTYPE_LOCATION:
-        break;
-      case CODES.MSGTYPE_VOIPMSG:
-      case CODES.MSGTYPE_VOIPNOTIFY:
-      case CODES.MSGTYPE_VOIPINVITE:
-        break;
-      case CODES.MSGTYPE_POSSIBLEFRIEND_MSG:
-        break;
-      case CODES.MSGTYPE_VERIFYMSG:
-        break;
-      case CODES.MSGTYPE_SHARECARD:
-        break;
-      case CODES.MSGTYPE_SYS:
-        break;
-      default:
-    }
+    // switch (msg.MsgType) {
+    //   case CODES.MSGTYPE_APP:
+    //     break;
+    //   case CODES.MSGTYPE_EMOTICON:
+    //     break;
+    //   case CODES.MSGTYPE_IMAGE:
+    //     break;
+    //   case CODES.MSGTYPE_VOICE:
+    //     break;
+    //   case CODES.MSGTYPE_VIDEO:
+    //     break;
+    //   case CODES.MSGTYPE_MICROVIDEO:
+    //     break;
+    //   case CODES.MSGTYPE_TEXT:
+    //     try {
+    //       await this.sendText(msg.FromUserName, msg.Content);
+    //     } catch (e) {
+    //       console.error(e);
+    //     }
+    //     break;
+    //   case CODES.MSGTYPE_RECALLED:
+    //     break;
+    //   case CODES.MSGTYPE_LOCATION:
+    //     break;
+    //   case CODES.MSGTYPE_VOIPMSG:
+    //   case CODES.MSGTYPE_VOIPNOTIFY:
+    //   case CODES.MSGTYPE_VOIPINVITE:
+    //     break;
+    //   case CODES.MSGTYPE_POSSIBLEFRIEND_MSG:
+    //     break;
+    //   case CODES.MSGTYPE_VERIFYMSG:
+    //     break;
+    //   case CODES.MSGTYPE_SHARECARD:
+    //     break;
+    //   case CODES.MSGTYPE_SYS:
+    //     break;
+    //   default:
+    // }
   }
 
   async sendText(to, content) {
@@ -537,6 +554,3 @@ class WeixinBot extends EventEmitter {
 }
 
 export default WeixinBot;
-
-const bot = new WeixinBot();
-bot.run();
