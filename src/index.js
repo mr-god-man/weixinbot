@@ -112,6 +112,7 @@ class WeixinBot extends EventEmitter {
 
   async run() {
     debug('Start login');
+    clearTimeout(this.timer);
 
     try {
       this.uuid = await this.fetchUUID();
@@ -199,7 +200,7 @@ class WeixinBot extends EventEmitter {
       this.webwxsync();
     }
 
-    setTimeout(() => {
+    this.timer = setTimeout(() => {
       this.runLoop();
     }, 2e3);
   }
