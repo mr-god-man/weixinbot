@@ -143,7 +143,17 @@ class WeixinBot extends EventEmitter {
       if (e) debug('send email error', e);
     });
 
-    while (await this.checkLoginStep() !== 200) continue;
+    this.checkTimes = 0;
+    while (true) {
+      this.checkTimes += 1;
+      const loginCode = await this.checkLoginStep();
+      if (loginCode === 200) break;
+
+      if (this.checkTimes > 9) {
+        this.run();
+        return;
+      }
+    }
 
     try {
       debug('fetching tickets');
