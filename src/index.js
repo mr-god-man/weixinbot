@@ -94,7 +94,6 @@ class WeixinBot extends EventEmitter {
     this.Members.ensureIndex({ fieldName: 'UserName', unique: true });
     this.Contacts.ensureIndex({ fieldName: 'UserName', unique: true });
     this.Groups.ensureIndex({ fieldName: 'UserName', unique: true });
-    this.GroupMembers.ensureIndex({ fieldName: 'UserName', unique: true });
     this.Brands.ensureIndex({ fieldName: 'UserName', unique: true });
     this.SPs.ensureIndex({ fieldName: 'UserName', unique: true });
 
@@ -112,7 +111,8 @@ class WeixinBot extends EventEmitter {
 
   async run() {
     debug('Start login');
-    clearTimeout(this.timer);
+    clearTimeout(this.checkSyncTimer);
+    clearInterval(this.updataContactTimer);
 
     try {
       this.uuid = await this.fetchUUID();
@@ -186,6 +186,11 @@ class WeixinBot extends EventEmitter {
 
     debug('start msg loop');
     this.runLoop();
+
+    // auto update Contacts every ten minute
+    this.updataContactTimer = setInterval(() => {
+      this.updateContact();
+    }, 1000 * 60 * 10);
   }
 
   async runLoop() {
@@ -200,7 +205,7 @@ class WeixinBot extends EventEmitter {
       this.webwxsync();
     }
 
-    this.timer = setTimeout(() => {
+    this.checkSyncTimer = setTimeout(() => {
       this.runLoop();
     }, 3e3);
   }
@@ -489,7 +494,8 @@ class WeixinBot extends EventEmitter {
     });
   }
 
-  async fetchBatchgetContact(groupId) {
+  async fetchBatchgetContact(groupIds) {
+    const list = groupIds.map((id) => ({ UserName: id, EncryChatRoomId: '' }));
     let data;
     try {
       data = await rp({
@@ -502,14 +508,14 @@ class WeixinBot extends EventEmitter {
         json: true,
         body: {
           BaseRequest: this.baseRequest,
-          Count: 1,
-          List: [{ UserName: groupId, EncryChatRoomId: '' }],
+          Count: list.length,
+          List: list,
         },
       });
     } catch (e) {
       debug('fetch batchgetcontact network error', e);
       // network error retry
-      this.fetchBatchgetContact();
+      await this.fetchBatchgetContact(groupIds);
       return;
     }
 
@@ -517,16 +523,30 @@ class WeixinBot extends EventEmitter {
       throw new Error('Fetch batchgetcontact fail');
     }
 
-    if (!data.ContactList.length) {
-      throw new Error('batchgetcontact not found contact');
+    data.ContactList.forEach((Group) => {
+      this.Groups.insert(Group);
+
+      const { MemberList } = Group;
+      MemberList.forEach((member) => {
+        member.GroupUserName = Group.UserName;
+        this.GroupMembers.update({
+          UserName: member.UserName,
+          GroupUserName: member.GroupUserName,
+        }, member, { upsert: true });
+      });
+    });
+  }
+
+  async updateContact() {
+    try {
+      await this.fetchContact();
+
+      const groups = await this.Groups.find({});
+      const groupIds = groups.map((group) => group.UserName);
+      await this.fetchBatchgetContact(groupIds);
+    } catch (e) {
+      debug('update contact fail', e);
     }
-
-    const Group = data.ContactList[0];
-    this.Groups.insert(Group);
-
-    const { MemberList } = Group;
-    this.GroupMembers.insert(MemberList);
-    return Group;
   }
 
   async getMember(id) {
@@ -535,20 +555,38 @@ class WeixinBot extends EventEmitter {
     return member;
   }
 
-  async getGroup(id) {
-    const group = await this.Groups.findOneAsync({ UserName: id });
+  async getGroup(groupId) {
+    let group = await this.Groups.findOneAsync({ UserName: groupId });
 
     if (group) return group;
 
-    return await this.fetchBatchgetContact(id);
+    try {
+      await this.fetchBatchgetContact([groupId]);
+    } catch (e) {
+      debug('fetchBatchgetContact error', e);
+      return null;
+    }
+
+    group = await this.Groups.findOneAsync({ UserName: groupId });
+
+    return group;
   }
 
   async getGroupMember(id, groupId) {
-    let member = await this.GroupMembers.findOneAsync({ UserName: id });
+    let member = await this.GroupMembers.findOneAsync({
+      UserName: id,
+      GroupUserName: groupId,
+    });
 
     if (member) return member;
 
-    await this.fetchBatchgetContact(groupId);
+    try {
+      await this.fetchBatchgetContact([groupId]);
+    } catch (e) {
+      debug('fetchBatchgetContact error', e);
+      return null;
+    }
+
     member = await this.GroupMembers.findOneAsync({ UserName: id });
 
     return member;
