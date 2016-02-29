@@ -145,11 +145,12 @@ class WeixinBot extends EventEmitter {
 
     this.checkTimes = 0;
     while (true) {
-      this.checkTimes += 1;
       const loginCode = await this.checkLoginStep();
       if (loginCode === 200) break;
 
-      if (this.checkTimes > 9) {
+      if (loginCode !== 201) this.checkTimes += 1;
+
+      if (this.checkTimes > 6) {
         this.run();
         return;
       }
