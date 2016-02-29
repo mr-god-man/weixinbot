@@ -149,6 +149,7 @@ class WeixinBot extends EventEmitter {
       if (loginCode !== 201) this.checkTimes += 1;
 
       if (this.checkTimes > 6) {
+        debug('check too much times, restart login');
         this.run();
         return;
       }
