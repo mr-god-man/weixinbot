@@ -615,6 +615,7 @@ class WeixinBot extends EventEmitter {
         },
       },
     }).then((data) => {
+      callback = callback || () => (null);
       if (!data || !data.BaseResponse || data.BaseResponse.Ret !== 0) {
         return callback(new Error('Send text fail'));
       }
