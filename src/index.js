@@ -612,6 +612,9 @@ class WeixinBot extends EventEmitter {
     rp({
       uri: URLS.API_webwxsendmsg,
       method: 'POST',
+      qs: {
+        pass_ticket: this.passTicket,
+      },
       json: true,
       body: {
         BaseRequest: this.baseRequest,
