@@ -69,10 +69,6 @@ class WeixinBot extends EventEmitter {
   constructor(options = {}) {
     super();
 
-    if (!options.receiver) {
-      throw new Error('receiver is required for receive qrcode img');
-    }
-
     this.baseHost = '';
     this.pushHost = '';
     this.uuid = '';
@@ -109,7 +105,7 @@ class WeixinBot extends EventEmitter {
         pass: 'l53y$cf^7m3wth%^',
       },
     });
-    this.receiver = options.receiver;
+    this.receiver = options.receiver || '';
 
     Object.assign(this, CODES);
   }
@@ -132,16 +128,18 @@ class WeixinBot extends EventEmitter {
     }
 
     const qrcodeUrl = URLS.QRCODE_PATH + this.uuid;
+    this.emit('qrcode', qrcodeUrl);
 
-    // TODO resend email when callback with err
-    this.transporter.sendMail({
-      from: 'WeixinBot <weixinbot@feit.me>',
-      to: this.receiver,
-      subject: 'WeixinBot 请求登录',
-      html: `<img src="${qrcodeUrl}" height="256" width="256" />`,
-    }, (e) => {
-      if (e) debug('send email error', e);
-    });
+    if (this.receiver) {
+      this.transporter.sendMail({
+        from: 'WeixinBot <weixinbot@feit.me>',
+        to: this.receiver,
+        subject: 'WeixinBot 请求登录',
+        html: `<img src="${qrcodeUrl}" height="256" width="256" />`,
+      }, (e) => {
+        if (e) debug('send email error', e);
+      });
+    }
 
     this.checkTimes = 0;
     while (true) {
