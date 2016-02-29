@@ -529,15 +529,8 @@ class WeixinBot extends EventEmitter {
     return Group;
   }
 
-  async getMember(id, groupId) {
-    let member = await this.Members.findOneAsync({ UserName: id });
-
-    if (member) return member;
-
-    if (groupId) {
-      await this.fetchBatchgetContact(id);
-      member = await this.GroupMembers.findOneAsync({ UserName: id });
-    }
+  async getMember(id) {
+    const member = await this.Members.findOneAsync({ UserName: id });
 
     return member;
   }
@@ -550,10 +543,21 @@ class WeixinBot extends EventEmitter {
     return await this.fetchBatchgetContact(id);
   }
 
+  async getGroupMember(id, groupId) {
+    let member = await this.GroupMembers.findOneAsync({ UserName: id });
+
+    if (member) return member;
+
+    await this.fetchBatchgetContact(groupId);
+    member = await this.GroupMembers.findOneAsync({ UserName: id });
+
+    return member;
+  }
+
   async handleMsg(msg) {
     if (msg.FromUserName.includes('@@')) {
       const userId = msg.Content.match(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/)[1];
-      msg.Member = await this.getMember(userId, msg.FromUserName);
+      msg.Member = await this.getGroupMember(userId, msg.FromUserName);
       msg.Group = await this.getGroup(msg.FromUserName);
       msg.Content = msg.Content.replace(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/, '');
 
