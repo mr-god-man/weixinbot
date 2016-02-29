@@ -202,7 +202,7 @@ class WeixinBot extends EventEmitter {
 
     this.timer = setTimeout(() => {
       this.runLoop();
-    }, 2e3);
+    }, 3e3);
   }
 
   async checkLoginStep() {
