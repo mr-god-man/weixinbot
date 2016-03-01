@@ -103,10 +103,11 @@ class WeixinBot extends EventEmitter {
     this.receiver = options.receiver || '';
 
     Object.assign(this, CODES);
+
+    debug(logo);
   }
 
   async run() {
-    debug(logo);
     debug('开始登录...');
     clearTimeout(this.checkSyncTimer);
     clearInterval(this.updataContactTimer);
