@@ -595,7 +595,7 @@ class WeixinBot extends EventEmitter {
   async handleMsg(msg) {
     if (msg.FromUserName.includes('@@')) {
       const userId = msg.Content.match(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/)[1];
-      msg.Member = await this.getGroupMember(userId, msg.FromUserName);
+      msg.GroupMember = await this.getGroupMember(userId, msg.FromUserName);
       msg.Group = await this.getGroup(msg.FromUserName);
       msg.Content = msg.Content.replace(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/, '');
 
