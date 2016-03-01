@@ -71,7 +71,7 @@ class WeixinBot extends EventEmitter {
       },
     });
 
-    // email address for got qrcode image url
+    // email address for get qrcode image url
     this.receiver = options.receiver || '';
 
     Object.assign(this, CODES);
