@@ -62,6 +62,26 @@ class WeixinBot extends EventEmitter {
   constructor(options = {}) {
     super();
 
+    // transporter for send qrcode image url
+    this.transporter = nodemailer.createTransport(options.mailOpts || {
+      service: 'QQex',
+      auth: {
+        user: 'weixinbot@feit.me',
+        pass: 'l53y$cf^7m3wth%^',
+      },
+    });
+
+    // email address for got qrcode image url
+    this.receiver = options.receiver || '';
+
+    Object.assign(this, CODES);
+
+    debug(logo);
+  }
+
+  async run() {
+    debug('开始登录...');
+
     this.baseHost = '';
     this.pushHost = '';
     this.uuid = '';
@@ -90,25 +110,6 @@ class WeixinBot extends EventEmitter {
     this.Brands.ensureIndex({ fieldName: 'UserName', unique: true });
     this.SPs.ensureIndex({ fieldName: 'UserName', unique: true });
 
-    // transporter for send qrcode image url
-    this.transporter = nodemailer.createTransport(options.mail || {
-      service: 'QQex',
-      auth: {
-        user: 'weixinbot@feit.me',
-        pass: 'l53y$cf^7m3wth%^',
-      },
-    });
-
-    // email address for got qrcode image url
-    this.receiver = options.receiver || '';
-
-    Object.assign(this, CODES);
-
-    debug(logo);
-  }
-
-  async run() {
-    debug('开始登录...');
     clearTimeout(this.checkSyncTimer);
     clearInterval(this.updataContactTimer);
 
@@ -132,13 +133,14 @@ class WeixinBot extends EventEmitter {
     this.emit('qrcode', qrcodeUrl);
 
     if (this.receiver) {
+      debug(`发送二维码图片到邮箱 ${this.receiver}`);
       this.transporter.sendMail({
         from: 'WeixinBot <weixinbot@feit.me>',
         to: this.receiver,
         subject: 'WeixinBot 请求登录',
         html: `<img src="${qrcodeUrl}" height="256" width="256" />`,
       }, (e) => {
-        if (e) debug('send email error', e);
+        if (e) debug(`发送二维码图片到邮箱 ${this.receiver} 失败`, e);
       });
     }
 
@@ -177,8 +179,7 @@ class WeixinBot extends EventEmitter {
       // await this.fetchBatchgetContact();
       this.pushHost = await this.lookupSyncCheckHost();
     } catch (e) {
-      debug('main step occur error', e);
-      // retry login
+      debug('初始化主要参数步骤出错，正在重新登录...', e);
       this.run();
       return;
     }
@@ -220,13 +221,13 @@ class WeixinBot extends EventEmitter {
       });
     } catch (e) {
       debug('checkLoginStep network error', e);
-      this.checkLoginStep();
+      await this.checkLoginStep();
       return;
     }
 
     if (!/code=(\d{3});/.test(data)) {
       // retry
-      return this.checkLoginStep();
+      return await this.checkLoginStep();
     }
 
     const loginCode = parseInt(data.match(/code=(\d{3});/)[1], 10);
@@ -268,7 +269,7 @@ class WeixinBot extends EventEmitter {
     } catch (e) {
       debug('webwxinit network error', e);
       // network error retry
-      this.webwxinit();
+      await this.webwxinit();
       return;
     }
 
@@ -301,7 +302,7 @@ class WeixinBot extends EventEmitter {
     } catch (e) {
       debug('webwxsync network error', e);
       // network error retry
-      this.webwxsync();
+      await this.webwxsync();
       return;
     }
 
@@ -330,7 +331,8 @@ class WeixinBot extends EventEmitter {
       } catch (e) {
         debug('lookupSyncCheckHost network error', e);
         // network error retry
-        return this.lookupSyncCheckHost();
+        await this.lookupSyncCheckHost();
+        return;
       }
 
       const retcode = data.match(/retcode:"(\d+)"/)[1];
@@ -356,7 +358,7 @@ class WeixinBot extends EventEmitter {
     } catch (e) {
       debug('synccheck network error', e);
       // network error retry
-      return this.syncCheck();
+      return await this.syncCheck();
     }
 
     const retcode = data.match(/retcode:"(\d+)"/)[1];
@@ -383,7 +385,7 @@ class WeixinBot extends EventEmitter {
     } catch (e) {
       debug('notify mobile network error', e);
       // network error retry
-      this.notifyMobile();
+      await this.notifyMobile();
       return;
     }
 
@@ -399,8 +401,7 @@ class WeixinBot extends EventEmitter {
     } catch (e) {
       debug('fetch uuid network error', e);
       // network error retry
-      this.fetchUUID();
-      return;
+      return await this.fetchUUID();
     }
 
     if (!/uuid = "(.+)";$/.test(data)) {
@@ -418,7 +419,7 @@ class WeixinBot extends EventEmitter {
     } catch (e) {
       debug('fetch tickets network error', e);
       // network error, retry
-      this.fetchTickets();
+      await this.fetchTickets();
       return;
     }
 
@@ -468,7 +469,7 @@ class WeixinBot extends EventEmitter {
     } catch (e) {
       debug('fetch contact network error', e);
       // network error retry
-      this.fetchContact();
+      await this.fetchContact();
       return;
     }
 

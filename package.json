@@ -1,10 +1,11 @@
 {
   "name": "weixinbot",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Robot for Wechat personal chat",
   "main": "./lib/index.js",
   "scripts": {
     "compile": "babel --plugins \"transform-runtime\" ./src --ignore __test__ --out-dir ./lib",
+    "pub": "npm run compile && npm publish",
     "test": "mocha $npm_package_options_mocha",
     "test-watch": "npm run test -- --watch"
   },
