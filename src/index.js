@@ -570,7 +570,7 @@ class WeixinBot extends EventEmitter {
     try {
       await this.fetchContact();
 
-      const groups = await this.Groups.find({});
+      const groups = await this.Groups.findAsync({});
       const groupIds = groups.map((group) => group.UserName);
       await this.fetchBatchgetContact(groupIds);
     } catch (e) {
