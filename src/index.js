@@ -1,5 +1,6 @@
 /* eslint-disable quote-props,no-constant-condition,
   prefer-template,consistent-return,new-cap,no-param-reassign */
+import fs from 'fs';
 import url from 'url';
 import path from 'path';
 import zlib from 'zlib';
@@ -12,32 +13,24 @@ import nodemailer from 'nodemailer';
 import RequestPromise from 'request-promise';
 import FileCookieStore from 'tough-cookie-filestore';
 
-import { getUrls, CODES } from './conf';
+import { getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST } from './conf';
 
 Promise.promisifyAll(Datastore.prototype);
 const debug = Debug('weixinbot');
+
 let URLS = getUrls({});
+const logo = fs.readFileSync(path.join(__dirname, '..', 'logo.txt'), 'utf8');
 
-const pushHostList = [
-  'webpush.weixin.qq.com',
-  'webpush2.weixin.qq.com',
-  'webpush.wechat.com',
-  'webpush1.wechat.com',
-  'webpush2.wechat.com',
-  'webpush.wechatapp.com',
-  'webpush1.wechatapp.com',
-];
+// try persistent cookie
+const cookiePath = path.join(process.cwd(), '.cookie.json');
+let jar;
+try {
+  touch.sync(cookiePath);
+  jar = RequestPromise.jar(new FileCookieStore(cookiePath));
+} catch (e) {
+  jar = RequestPromise.jar();
+}
 
-const spAccounts = 'newsapp,fmessage,filehelper,weibo,qqmail,fmessage,' +
-  'tmessage,qmessage,qqsync,floatbottle,lbsapp,shakeapp,medianote,qqfriend,' +
-  'readerapp,blogapp,facebookapp,masssendapp,meishiapp,feedsapp,voip,' +
-  'blogappweixin,weixin,brandsessionholder,weixinreminder,wxid_novlwrv3lqwv11,' +
-  'gh_22b87fa7cb3c,officialaccounts,notification_messages,wxid_novlwrv3lqwv11,' +
-  'gh_22b87fa7cb3c,wxitil,userexperience_alarm,notification_messages';
-
-// persistent cookie
-const cookiePATHS = path.join(process.cwd(), '.cookie.json');
-touch(cookiePATHS);
 const rp = RequestPromise.defaults({
   headers: {
     'Accept': 'application/json, text/plain, */*',
@@ -47,8 +40,8 @@ const rp = RequestPromise.defaults({
       'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2652.0 Safari/537.36',
   },
 
+  jar,
   encoding: null,
-  jar: new FileCookieStore(cookiePATHS),
   transform(buf, response) {
     if (response.headers['content-encoding'] === 'deflate') {
       const str = zlib.inflateRawSync(buf).toString();
@@ -97,6 +90,7 @@ class WeixinBot extends EventEmitter {
     this.Brands.ensureIndex({ fieldName: 'UserName', unique: true });
     this.SPs.ensureIndex({ fieldName: 'UserName', unique: true });
 
+    // transporter for send qrcode image url
     this.transporter = nodemailer.createTransport(options.mail || {
       service: 'QQex',
       auth: {
@@ -104,13 +98,16 @@ class WeixinBot extends EventEmitter {
         pass: 'l53y$cf^7m3wth%^',
       },
     });
+
+    // email address for got qrcode image url
     this.receiver = options.receiver || '';
 
     Object.assign(this, CODES);
   }
 
   async run() {
-    debug('Start login');
+    debug(logo);
+    debug('开始登录...');
     clearTimeout(this.checkSyncTimer);
     clearInterval(this.updataContactTimer);
 
@@ -123,10 +120,12 @@ class WeixinBot extends EventEmitter {
     }
 
     if (!this.uuid) {
-      debug('Get uuid failed, restart login');
+      debug('获取 uuid 失败，正在重试...');
       this.run();
       return;
     }
+
+    debug(`获得 uuid -> ${this.uuid}`);
 
     const qrcodeUrl = URLS.QRCODE_PATH + this.uuid;
     this.emit('qrcode', qrcodeUrl);
@@ -142,6 +141,7 @@ class WeixinBot extends EventEmitter {
       });
     }
 
+    // limit check times
     this.checkTimes = 0;
     while (true) {
       const loginCode = await this.checkLoginStep();
@@ -150,28 +150,28 @@ class WeixinBot extends EventEmitter {
       if (loginCode !== 201) this.checkTimes += 1;
 
       if (this.checkTimes > 6) {
-        debug('check too much times, restart login');
+        debug('检查登录状态次数超出限制，重新获取二维码');
         this.run();
         return;
       }
     }
 
     try {
-      debug('fetching tickets');
+      debug('正在获取凭据...');
       await this.fetchTickets();
-      debug('fetch tickets complete');
+      debug('获取凭据成功!');
 
-      debug('webwxinit...');
+      debug('正在初始化参数...');
       await this.webwxinit();
-      debug('webwxinit complete');
+      debug('初始化成功!');
 
-      debug('notify mobile...');
+      debug('正在通知客户端网页端已登录...');
       await this.notifyMobile();
-      debug('notify mobile complete');
+      debug('通知成功!');
 
-      debug('fetching contact');
+      debug('正在获取通讯录列表...');
       await this.fetchContact();
-      debug('fetch contact complete');
+      debug('获取通讯录列表成功!');
 
       // await this.fetchBatchgetContact();
       this.pushHost = await this.lookupSyncCheckHost();
@@ -184,7 +184,7 @@ class WeixinBot extends EventEmitter {
 
     URLS = getUrls({ baseHost: this.baseHost, pushHost: this.pushHost });
 
-    debug('start msg loop');
+    debug('开始循环拉取新消息');
     this.runLoop();
 
     // auto update Contacts every ten minute
@@ -232,22 +232,22 @@ class WeixinBot extends EventEmitter {
 
     switch (loginCode) {
       case 200:
-        debug('Confirm login!');
+        debug('已点击确认登录!');
         this.redirectUri = data.match(/redirect_uri="(.+)";$/)[1] + '&fun=new&version=v2';
         this.baseHost = url.parse(this.redirectUri).host;
         URLS = getUrls({ baseHost: this.baseHost });
         break;
 
       case 201:
-        debug('QRcode scaned!');
+        debug('二维码已被扫描，请确认登录!');
         break;
 
       case 408:
-        debug('Check login timeout, retry...');
+        debug('检查登录超时，正在重试...');
         break;
 
       default:
-        debug('Unkonw status, retry...');
+        debug('未知的状态，重试...');
     }
 
     return loginCode;
@@ -311,7 +311,7 @@ class WeixinBot extends EventEmitter {
   }
 
   async lookupSyncCheckHost() {
-    for (const host of pushHostList) {
+    for (const host of PUSH_HOST_LIST) {
       let data;
       try {
         data = await rp({
@@ -437,6 +437,12 @@ class WeixinBot extends EventEmitter {
     this.sid = wxsidM && wxsidM[1];
     this.uin = wxuinM && wxuinM[1];
     this.passTicket = passTicketM && passTicketM[1];
+    debug(`
+      获得 skey -> ${this.skey}
+      获得 sid -> ${this.sid}
+      获得 uid -> ${this.uin}
+      获得 pass_ticket -> ${this.passTicket}
+    `);
 
     this.baseRequest = {
       Uin: parseInt(this.uin, 10),
@@ -470,28 +476,46 @@ class WeixinBot extends EventEmitter {
     }
 
     this.Members.insert(data.MemberList);
+    this.totalMemberCount = data.MemberList.length;
+    this.brandCount = 0;
+    this.spCount = 0;
+    this.groupCount = 0;
+    this.friendCount = 0;
     data.MemberList.forEach((member) => {
       const userName = member.UserName;
 
       if (member.VerifyFlag & CODES.MM_USERATTRVERIFYFALG_BIZ_BRAND) {
+        this.brandCount += 1;
         this.Brands.insert(member);
         return;
       }
 
-      if (spAccounts.includes(userName) || /@qqim$/.test(userName)) {
+      if (SP_ACCOUNTS.includes(userName) || /@qqim$/.test(userName)) {
+        this.spCount += 1;
         this.SPs.insert(member);
         return;
       }
 
       if (userName.includes('@@')) {
+        this.groupCount += 1;
         this.Groups.insert(member);
         return;
       }
 
       if (userName !== this.my.UserName) {
+        this.friendCount += 1;
         this.Contacts.insert(member);
       }
     });
+
+    debug(`
+      获取通讯录成功
+      全部成员数: ${this.totalMemberCount}
+      公众帐号数: ${this.brandCount}
+      特殊帐号数: ${this.spCount}
+      通讯录好友数: ${this.friendCount}
+      加入的群聊数(不准确，只有把群聊加入通讯录才会在这里显示): ${this.groupCount}
+    `);
   }
 
   async fetchBatchgetContact(groupIds) {
@@ -525,6 +549,8 @@ class WeixinBot extends EventEmitter {
 
     data.ContactList.forEach((Group) => {
       this.Groups.insert(Group);
+      debug(`获取到群: ${Group.NickName}`);
+      debug(`群 ${Group.NickName} 成员数量: ${Group.MemberList.length}`);
 
       const { MemberList } = Group;
       MemberList.forEach((member) => {
@@ -538,6 +564,7 @@ class WeixinBot extends EventEmitter {
   }
 
   async updateContact() {
+    debug('正在更新通讯录');
     try {
       await this.fetchContact();
 
@@ -545,8 +572,9 @@ class WeixinBot extends EventEmitter {
       const groupIds = groups.map((group) => group.UserName);
       await this.fetchBatchgetContact(groupIds);
     } catch (e) {
-      debug('update contact fail', e);
+      debug('更新通讯录失败', e);
     }
+    debug('更新通讯录成功!');
   }
 
   async getMember(id) {
@@ -599,11 +627,21 @@ class WeixinBot extends EventEmitter {
       msg.Group = await this.getGroup(msg.FromUserName);
       msg.Content = msg.Content.replace(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/, '');
 
+      debug(`
+        来自群 ${msg.Group.NickName} 的消息
+        ${msg.GroupMember.DisplayName || msg.GroupMember.NickName}: ${msg.Content}
+      `);
+
       this.emit('group', msg);
       return;
     }
 
     msg.Member = await this.getMember(msg.FromUserName);
+    debug(`
+      新消息
+      ${msg.Member.RemarkName || msg.Member.NickName}: ${msg.Content}
+    `);
+
     this.emit('friend', msg);
     // if (msg.MsgType === CODES.MSGTYPE_SYSNOTICE) {
     //   return;
