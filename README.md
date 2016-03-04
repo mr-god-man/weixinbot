@@ -1,9 +1,11 @@
+```
 __    __       _        _           ___         _
 / / /\ \ \ ___ (_)__  __(_) _ __    / __\  ___  | |_
 \ \/  \/ // _ \| |\ \/ /| || '_ \  /__\// / _ \ | __|
  \  /\  /|  __/| | >  < | || | | |/ \/  \| (_) || |_
   \/  \/  \___||_|/_/\_\|_||_| |_|\_____/ \___/  \__|
                                  微信Nodejs版 by feit
+```
 
 ## Nodejs 封装网页版微信的接口，可编程控制微信消息
 
@@ -45,7 +47,7 @@ bot.run()
 DEBUG=weixinbot node index.js
 ```
 
-### [API DOC](https://github.com/feit/weixinbot/tree/master/docs/API.md)
+### [API Doc](https://github.com/feit/weixinbot/tree/master/docs/API.md)
 
 ### License
 The MIT license.
