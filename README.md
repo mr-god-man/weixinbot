@@ -24,7 +24,7 @@ bot.on('qrcode', (qrcodeUrl) => {
 })
 
 bot.on('friend', (msg) => {
-  console.log(`${msg.Member.RemarkName || msg.Member.NickName}: ${msg.Content}`)
+  console.log(msg.Member.NickName + ': ' + msg.Content)
   bot.sendText(msg.FromUserName, 'Got it')
 })
 
@@ -38,7 +38,7 @@ bot.run()
 DEBUG=weixinbot node index.js
 ```
 
-### [API](https://github.com/feit/weixinbot/tree/master/docs/API.md)
+### [API DOC](https://github.com/feit/weixinbot/tree/master/docs/API.md)
 
 ### License
 The MIT license.
