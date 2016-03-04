@@ -1,8 +1,8 @@
 {
   "name": "weixinbot",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Robot for Wechat personal chat",
-  "main": "./lib/index.js",
+  "main": "./lib/weixinbot.js",
   "scripts": {
     "compile": "babel --plugins \"transform-runtime\" ./src --ignore __test__ --out-dir ./lib",
     "pub": "npm run compile && npm publish",
