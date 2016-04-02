@@ -12,42 +12,42 @@ __    __       _        _           ___         _
 [![NPM version](https://badge.fury.io/js/weixinbot.png)](http://badge.fury.io/js/weixinbot)
 [![Dependencies Status](https://david-dm.org/feit/weixinbot.png)](https://david-dm.org/feit/weixinbot)
 
+
 ### Install
+
 ```
 npm install weixinbot --save
 ```
 
+**Require Nodejs v4+**
+
+
 ### Usage
-```js
-// Require Nodejs v4+
+```javascript
+const Weixinbot = require('weixinbot2')
 
-// index.js
-const Weixinbot = require('weixinbot')
-
-// will send qrcode to your email address
-const bot = new Weixinbot({ receiver: 'your@email.com' })
+const bot = new Weixinbot()
 
 // will emit when bot fetch a new qrcodeUrl
 bot.on('qrcode', (qrcodeUrl) => {
   console.log(qrcodeUrl)
-})
+});
 
 bot.on('friend', (msg) => {
   console.log(msg.Member.NickName + ': ' + msg.Content)
   bot.sendText(msg.FromUserName, 'Got it')
-})
+});
 
 bot.run()
-
 ```
+
 
 ### Run
 ```bash
 # We recommend show debug message under development
-DEBUG=weixinbot node index.js
+$ DEBUG=weixinbot node index.js
 ```
 
-### [API Doc](https://github.com/feit/weixinbot/tree/master/docs/API.md)
 
 ### License
 The MIT license.

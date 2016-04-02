@@ -9,7 +9,6 @@ import touch from 'touch';
 import Datastore from 'nedb';
 import Promise from 'bluebird';
 import EventEmitter from 'events';
-import nodemailer from 'nodemailer';
 import RequestPromise from 'request-promise';
 import FileCookieStore from 'tough-cookie-filestore';
 
@@ -61,18 +60,6 @@ const makeDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(
 class WeixinBot extends EventEmitter {
   constructor(options = {}) {
     super();
-
-    // transporter for send qrcode image url
-    this.transporter = nodemailer.createTransport(options.mailOpts || {
-      service: 'QQex',
-      auth: {
-        user: 'weixinbot@feit.me',
-        pass: 'l53y$cf^7m3wth%^',
-      },
-    });
-
-    // email address for get qrcode image url
-    this.receiver = options.receiver || '';
 
     Object.assign(this, CODES);
 
@@ -131,18 +118,6 @@ class WeixinBot extends EventEmitter {
 
     const qrcodeUrl = URLS.QRCODE_PATH + this.uuid;
     this.emit('qrcode', qrcodeUrl);
-
-    if (this.receiver) {
-      debug(`发送二维码图片到邮箱 ${this.receiver}`);
-      this.transporter.sendMail({
-        from: `WeixinBot <${this.transporter.transporter.options.auth.user}>`,
-        to: this.receiver,
-        subject: 'WeixinBot 请求登录',
-        html: `<img src="${qrcodeUrl}" height="256" width="256" />`,
-      }, (e) => {
-        if (e) debug(`发送二维码图片到邮箱 ${this.receiver} 失败`, e);
-      });
-    }
 
     // limit check times
     this.checkTimes = 0;
