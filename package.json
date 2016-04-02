@@ -1,7 +1,7 @@
 {
   "name": "weixinbot2",
   "version": "0.5.0",
-  "description": "Robot for Wechat personal chat",
+  "description": "Robot for Wechat personal chat (fork from feit's weixinbot)",
   "main": "./lib/weixinbot.js",
   "scripts": {
     "clean": "rm -Rf lib",
@@ -9,8 +9,16 @@
     "watch": "npm run clean && babel src --out-dir lib --watch",
     "prepublish": "npm run compile"
   },
-  "author": "feit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leizongmin/weixinbot.git"
+  },
+  "author": "Zongmin Lei <leizongmin@gmail.com>",
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/leizongmin/weixinbot/issues"
+  },
+  "homepage": "https://github.com/leizongmin/weixinbot#readme",
   "dependencies": {
     "bluebird": "^3.3.3",
     "debug": "^2.2.0",
