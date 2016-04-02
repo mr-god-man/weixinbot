@@ -23,6 +23,8 @@ bot.on('friend', (msg) => {
   console.log(msg.Member.NickName + ': ' + msg.Content)
   bot.sendText(msg.FromUserName, 'Got it')
 });
+// group: 群组消息
+// system: 系统消息
 
 bot.run()
 ```
@@ -31,7 +33,7 @@ bot.run()
 ## Run
 ```bash
 # We recommend show debug message under development
-$ DEBUG=weixinbot node index.js
+$ DEBUG=weixinbot2 node index.js
 ```
 
 

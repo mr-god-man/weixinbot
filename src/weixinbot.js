@@ -1,4 +1,4 @@
-import fs from 'fs';
+import os from 'os';
 import url from 'url';
 import path from 'path';
 import zlib from 'zlib';
@@ -9,17 +9,17 @@ import Promise from 'bluebird';
 import EventEmitter from 'events';
 import RequestPromise from 'request-promise';
 import FileCookieStore from 'tough-cookie-filestore';
+import xml2json from 'xml2json';
 
 import { getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST } from './conf';
 
 Promise.promisifyAll(Datastore.prototype);
-const debug = createDebug('weixinbot');
+const debug = createDebug('weixinbot2');
 
 let URLS = getUrls({});
-const logo = fs.readFileSync(path.join(__dirname, '..', 'logo.txt'), 'utf8');
 
 // try persistent cookie
-const cookiePath = path.join(process.cwd(), '.cookie.json');
+const cookiePath = path.join(os.tmpdir(), `${Date.now()}.${Math.random()}.cookie.json`);
 let jar;
 try {
   touch.sync(cookiePath);
@@ -34,7 +34,7 @@ const rp = RequestPromise.defaults({
     'Accept-Encoding': 'gzip, deflate',
     'Accept-Language': 'zh-CN,zh;q=0.8,en;q=0.6,zh-TW;q=0.4',
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) ' +
-      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2652.0 Safari/537.36',
+    'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2652.0 Safari/537.36',
   },
 
   jar,
@@ -55,13 +55,44 @@ const rp = RequestPromise.defaults({
 
 const makeDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
 
+function parseContent(input) {
+  if (/^&lt;.*&gt;$/.test(input)) {
+    return JSON.parse(xml2json.toJson(input.replace(/&lt;/g, '<').replace(/&gt;/g, '>')));
+  } else {
+    return input;
+  }
+}
+
+function parseEmoji(input) {
+  return input.replace(/(<span class="emoji emoji([a-z0-9A-Z]+)"><\/span>)/g, function (_1, _2, s) {
+    return String.fromCodePoint(parseInt(s, 16));
+  });
+}
+
+// 用于处理收到的消息，比如替换Emoji字符等
+function fixIncommingMessage(msg) {
+  msg.Content = parseContent(msg.Content);
+  if (typeof msg.Content === 'string') {
+    msg.Content = parseEmoji(msg.Content);
+  }
+  if (msg.Member && msg.Member.NickName) {
+    msg.Member.NickName = parseEmoji(msg.Member.NickName);
+  }
+  if (msg.Group && msg.Group.NickName) {
+    msg.Group.NickName = parseEmoji(msg.Group.NickName);
+  }
+  if (msg.Member && msg.Member.NickName) {
+    msg.Member.NickName = parseEmoji(msg.Member.NickName);
+  }
+  return msg;
+}
+
+
 class WeixinBot extends EventEmitter {
+  
   constructor(options = {}) {
     super();
-
     Object.assign(this, CODES);
-
-    debug(logo);
   }
 
   async run() {
@@ -177,7 +208,11 @@ class WeixinBot extends EventEmitter {
     }
 
     if (selector !== '0') {
-      this.webwxsync();
+      try {
+        this.webwxsync();
+      } catch (e) {
+        debug('webwxsync error: %s', e.stack);
+      }
     }
 
     this.checkSyncTimer = setTimeout(() => {
@@ -282,7 +317,11 @@ class WeixinBot extends EventEmitter {
     this.syncKey = data.SyncKey;
     this.formateSyncKey = this.syncKey.List.map((item) => item.Key + '_' + item.Val).join('|');
 
-    data.AddMsgList.forEach((msg) => this.handleMsg(msg));
+    try {
+      data.AddMsgList.forEach((msg) => this.handleMsg(msg));
+    } catch (e) {
+      debug('webwxsync handleMsg error: %s', e.stack);
+    }
   }
 
   async lookupSyncCheckHost() {
@@ -458,6 +497,7 @@ class WeixinBot extends EventEmitter {
     this.friendCount = 0;
     data.MemberList.forEach((member) => {
       const userName = member.UserName;
+      debug('fetchContact: userName=%s', userName);
 
       if (member.VerifyFlag & CODES.MM_USERATTRVERIFYFALG_BIZ_BRAND) {
         this.brandCount += 1;
@@ -553,9 +593,11 @@ class WeixinBot extends EventEmitter {
   }
 
   async getMember(id) {
+    debug('getMember: %s', id);
+    
     const member = await this.Members.findOneAsync({ UserName: id });
-
-    return member;
+    
+    return member; 
   }
 
   async getGroup(groupId) {
@@ -596,6 +638,17 @@ class WeixinBot extends EventEmitter {
   }
 
   async handleMsg(msg) {
+    
+    const emit = (type, msg) => {
+      this.emit(type, fixIncommingMessage(msg));
+    };
+    
+    if (msg.FromUserName === msg.ToUserName) {
+      debug('系统消息 %j', msg.Content);
+      emit('system', msg);
+      return;  
+    }
+    
     if (msg.FromUserName.includes('@@')) {
       const userId = msg.Content.match(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/)[1];
       msg.GroupMember = await this.getGroupMember(userId, msg.FromUserName);
@@ -607,7 +660,7 @@ class WeixinBot extends EventEmitter {
         ${msg.GroupMember.DisplayName || msg.GroupMember.NickName}: ${msg.Content}
       `);
 
-      this.emit('group', msg);
+      emit('group', msg);
       return;
     }
 
@@ -617,7 +670,7 @@ class WeixinBot extends EventEmitter {
       ${msg.Member.RemarkName || msg.Member.NickName}: ${msg.Content}
     `);
 
-    this.emit('friend', msg);
+    emit('friend', msg);
     // if (msg.MsgType === CODES.MSGTYPE_SYSNOTICE) {
     //   return;
     // }

@@ -26,7 +26,8 @@
     "nodemailer": "^2.2.1",
     "request-promise": "^2.0.0",
     "touch": "^1.0.0",
-    "tough-cookie-filestore": "0.0.1"
+    "tough-cookie-filestore": "0.0.1",
+    "xml2json": "^0.9.0"
   },
   "devDependencies": {
     "babel-cli": "^6.6.5",
