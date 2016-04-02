@@ -216,7 +216,7 @@ class WeixinBot extends EventEmitter {
     let data;
     try {
       data = await rp({
-        uri: URLS.API_login + `?uuid=${this.uuid}&tip=1&r=${+new Date}`,
+        uri: URLS.API_login + `?uuid=${this.uuid}&tip=1&r=${Date.now()}`,
         timeout: 35e3,
       });
     } catch (e) {
@@ -319,7 +319,7 @@ class WeixinBot extends EventEmitter {
         data = await rp({
           uri: 'https://' + host + '/cgi-bin/mmwebwx-bin/synccheck',
           qs: {
-            r: +new Date,
+            r: Date.now(),
             skey: this.skey,
             sid: this.sid,
             uin: this.uin,
@@ -346,7 +346,7 @@ class WeixinBot extends EventEmitter {
       data = await rp({
         uri: URLS.API_synccheck,
         qs: {
-          r: +new Date,
+          r: Date.now(),
           skey: this.skey,
           sid: this.sid,
           uin: this.uin,
@@ -379,7 +379,7 @@ class WeixinBot extends EventEmitter {
           Code: CODES.StatusNotifyCode_INITED,
           FromUserName: this.my.UserName,
           ToUserName: this.my.UserName,
-          ClientMsgId: +new Date,
+          ClientMsgId: Date.now(),
         },
       });
     } catch (e) {
@@ -463,7 +463,7 @@ class WeixinBot extends EventEmitter {
           skey: this.skey,
           pass_ticket: this.passTicket,
           seq: 0,
-          r: +new Date,
+          r: Date.now(),
         },
       });
     } catch (e) {
@@ -529,7 +529,7 @@ class WeixinBot extends EventEmitter {
         uri: URLS.API_webwxbatchgetcontact,
         qs: {
           type: 'ex',
-          r: +new Date,
+          r: Date.now(),
         },
         json: true,
         body: {
@@ -690,7 +690,7 @@ class WeixinBot extends EventEmitter {
   }
 
   sendText(to, content, callback) {
-    const clientMsgId = (+new Date + Math.random().toFixed(3)).replace('.', '');
+    const clientMsgId = (Date.now() + Math.random().toFixed(3)).replace('.', '');
 
     rp({
       uri: URLS.API_webwxsendmsg,
