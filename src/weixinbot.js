@@ -489,13 +489,14 @@ class WeixinBot extends EventEmitter {
       throw new Error('Fetch contact fail');
     }
 
-    this.Members.insert(data.MemberList);
     this.totalMemberCount = data.MemberList.length;
     this.brandCount = 0;
     this.spCount = 0;
     this.groupCount = 0;
     this.friendCount = 0;
     data.MemberList.forEach((member) => {
+      this.Members.insert(member);
+      
       const userName = member.UserName;
       debug('fetchContact: userName=%s', userName);
 
