@@ -1,11 +1,12 @@
 {
-  "name": "weixinbot",
-  "version": "0.4.8",
+  "name": "weixinbot2",
+  "version": "0.5.0",
   "description": "Robot for Wechat personal chat",
   "main": "./lib/weixinbot.js",
   "scripts": {
-    "compile": "babel --plugins \"transform-runtime\" ./src --ignore __test__ --out-dir ./lib",
-    "pub": "npm run compile && npm publish",
+    "clean": "rm -Rf lib",
+    "compile": "npm run clean && babel --plugins \"transform-runtime\" ./src --ignore __test__ --out-dir ./lib",
+    "prepublish": "npm run compile",
     "test": "mocha $npm_package_options_mocha",
     "test-watch": "npm run test -- --watch"
   },
@@ -15,6 +16,7 @@
   "author": "feit",
   "license": "MIT",
   "dependencies": {
+    "babel-preset-es2015-node4": "^2.1.0",
     "babel-runtime": "^6.3.19",
     "bluebird": "^3.3.3",
     "debug": "^2.2.0",
