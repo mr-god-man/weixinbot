@@ -1,10 +1,8 @@
-/* eslint-disable quote-props,no-constant-condition,
-  prefer-template,consistent-return,new-cap,no-param-reassign */
 import fs from 'fs';
 import url from 'url';
 import path from 'path';
 import zlib from 'zlib';
-import Debug from 'debug';
+import createDebug from 'debug';
 import touch from 'touch';
 import Datastore from 'nedb';
 import Promise from 'bluebird';
@@ -15,7 +13,7 @@ import FileCookieStore from 'tough-cookie-filestore';
 import { getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST } from './conf';
 
 Promise.promisifyAll(Datastore.prototype);
-const debug = Debug('weixinbot');
+const debug = createDebug('weixinbot');
 
 let URLS = getUrls({});
 const logo = fs.readFileSync(path.join(__dirname, '..', 'logo.txt'), 'utf8');
