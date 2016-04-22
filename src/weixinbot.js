@@ -65,7 +65,12 @@ function parseContent(input) {
 
 function parseEmoji(input) {
   return input.replace(/(<span class="emoji emoji([a-z0-9A-Z]+)"><\/span>)/g, function (_1, _2, s) {
-    return String.fromCodePoint(parseInt(s, 16));
+    try {
+      return String.fromCodePoint(parseInt(s, 16));
+    } catch (err) {
+      debug('parseEmoji: %s', err);
+    }
+    return s;
   });
 }
 
