@@ -4,17 +4,16 @@ import path from 'path';
 import zlib from 'zlib';
 import createDebug from 'debug';
 import touch from 'touch';
-import Datastore from 'nedb';
 import Promise from 'bluebird';
 import EventEmitter from 'events';
 import RequestPromise from 'request-promise';
 import FileCookieStore from 'tough-cookie-filestore';
 import xml2json from 'xml2json';
+import SimpleStore from './db';
 
 import { getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST } from './conf';
 
-Promise.promisifyAll(Datastore.prototype);
-const debug = createDebug('weixinbot2');
+const debug = createDebug('weixinbot2:core');
 
 let URLS = getUrls({});
 
@@ -89,6 +88,9 @@ function fixIncommingMessage(msg) {
   if (msg.Member && msg.Member.NickName) {
     msg.Member.NickName = parseEmoji(msg.Member.NickName);
   }
+  if (msg.GroupMember && msg.GroupMember.NickName) {
+    msg.GroupMember.NickName = parseEmoji(msg.GroupMember.NickName);
+  }
   return msg;
 }
 
@@ -118,19 +120,12 @@ class WeixinBot extends EventEmitter {
     this.formateSyncKey = '';
 
     // member store
-    this.Members = new Datastore();
-    this.Contacts = new Datastore();
-    this.Groups = new Datastore();
-    this.GroupMembers = new Datastore();
-    this.Brands = new Datastore(); // 公众帐号
-    this.SPs = new Datastore(); // 特殊帐号
-
-    // indexing
-    this.Members.ensureIndex({ fieldName: 'UserName', unique: true });
-    this.Contacts.ensureIndex({ fieldName: 'UserName', unique: true });
-    this.Groups.ensureIndex({ fieldName: 'UserName', unique: true });
-    this.Brands.ensureIndex({ fieldName: 'UserName', unique: true });
-    this.SPs.ensureIndex({ fieldName: 'UserName', unique: true });
+    this.Members = new SimpleStore('UserName');
+    this.Contacts = new SimpleStore('UserName');
+    this.Groups = new SimpleStore('UserName');
+    this.GroupMembers = new SimpleStore('UserName', 'GroupUserName');
+    this.Brands = new SimpleStore('UserName'); // 公众帐号
+    this.SPs = new SimpleStore('UserName'); // 特殊帐号
 
     clearTimeout(this.checkSyncTimer);
     clearInterval(this.updataContactTimer);
@@ -502,32 +497,32 @@ class WeixinBot extends EventEmitter {
     this.groupCount = 0;
     this.friendCount = 0;
     data.MemberList.forEach((member) => {
-      this.Members.insert(member);
+      this.Members.add(member);
 
       const userName = member.UserName;
       debug('fetchContact: userName=%s', userName);
 
       if (member.VerifyFlag & CODES.MM_USERATTRVERIFYFALG_BIZ_BRAND) {
         this.brandCount += 1;
-        this.Brands.insert(member);
+        this.Brands.add(member);
         return;
       }
 
       if (SP_ACCOUNTS.includes(userName) || /@qqim$/.test(userName)) {
         this.spCount += 1;
-        this.SPs.insert(member);
+        this.SPs.add(member);
         return;
       }
 
       if (userName.includes('@@')) {
         this.groupCount += 1;
-        this.Groups.insert(member);
+        this.Groups.add(member);
         return;
       }
 
       if (userName !== this.my.UserName) {
         this.friendCount += 1;
-        this.Contacts.insert(member);
+        this.Contacts.add(member);
       }
     });
 
@@ -571,17 +566,14 @@ class WeixinBot extends EventEmitter {
     }
 
     data.ContactList.forEach((Group) => {
-      this.Groups.insert(Group);
+      this.Groups.add(Group);
       debug(`获取到群: ${Group.NickName}`);
       debug(`群 ${Group.NickName} 成员数量: ${Group.MemberList.length}`);
 
       const { MemberList } = Group;
       MemberList.forEach((member) => {
         member.GroupUserName = Group.UserName;
-        this.GroupMembers.update({
-          UserName: member.UserName,
-          GroupUserName: member.GroupUserName,
-        }, member, { upsert: true });
+        this.GroupMembers.update([member.UserName, member.GroupUserName], member);
       });
     });
   }
@@ -591,7 +583,7 @@ class WeixinBot extends EventEmitter {
     try {
       await this.fetchContact();
 
-      const groups = await this.Groups.findAsync({});
+      const groups = this.Groups.list();
       const groupIds = groups.map((group) => group.UserName);
       await this.fetchBatchgetContact(groupIds);
     } catch (e) {
@@ -603,13 +595,13 @@ class WeixinBot extends EventEmitter {
   async getMember(id) {
     debug('getMember: %s', id);
 
-    const member = await this.Members.findOneAsync({ UserName: id });
+    const member = this.Members.get(id);
 
     return member;
   }
 
   async getGroup(groupId) {
-    let group = await this.Groups.findOneAsync({ UserName: groupId });
+    let group = this.Groups.get(groupId);
 
     if (group) return group;
 
@@ -620,16 +612,13 @@ class WeixinBot extends EventEmitter {
       return null;
     }
 
-    group = await this.Groups.findOneAsync({ UserName: groupId });
+    group = this.Groups.get(groupId);
 
     return group;
   }
 
   async getGroupMember(id, groupId) {
-    let member = await this.GroupMembers.findOneAsync({
-      UserName: id,
-      GroupUserName: groupId,
-    });
+    let member = this.GroupMembers.get(id, groupId);
 
     if (member) return member;
 
@@ -640,7 +629,7 @@ class WeixinBot extends EventEmitter {
       return null;
     }
 
-    member = await this.GroupMembers.findOneAsync({ UserName: id });
+    member = this.GroupMembers.list().filter(v => v.UserName === id)[0];
 
     return member;
   }
@@ -648,6 +637,9 @@ class WeixinBot extends EventEmitter {
   async handleMsg(msg) {
 
     const emit = (type, msg) => {
+      if ('Member' in msg && !msg.Member) msg.Member = {};
+      if ('Group' in msg && !msg.Group) msg.Group = {};
+      if ('GroupMember' in msg && !msg.GroupMember) msg.GroupMember = {};
       this.emit(type, fixIncommingMessage(msg));
     };
 
@@ -664,8 +656,8 @@ class WeixinBot extends EventEmitter {
       msg.Content = msg.Content.replace(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/, '');
 
       debug(`
-        来自群 ${msg.Group.NickName} 的消息
-        ${msg.GroupMember.DisplayName || msg.GroupMember.NickName}: ${msg.Content}
+        来自群 ${msg.Group && msg.Group.NickName} 的消息
+        ${msg.GroupMember && (msg.GroupMember.DisplayName || msg.GroupMember.NickName)}: ${msg.Content}
       `);
 
       emit('group', msg);
@@ -675,7 +667,7 @@ class WeixinBot extends EventEmitter {
     msg.Member = await this.getMember(msg.FromUserName);
     debug(`
       新消息
-      ${msg.Member.RemarkName || msg.Member.NickName}: ${msg.Content}
+      ${msg.Member && (msg.Member.RemarkName || msg.Member.NickName)}: ${msg.Content}
     `);
 
     emit('friend', msg);
