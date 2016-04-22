@@ -89,7 +89,7 @@ function fixIncommingMessage(msg) {
 
 
 class WeixinBot extends EventEmitter {
-  
+
   constructor(options = {}) {
     super();
     Object.assign(this, CODES);
@@ -97,6 +97,7 @@ class WeixinBot extends EventEmitter {
 
   async run() {
     debug('开始登录...');
+    this.emit('offline');
 
     this.baseHost = '';
     this.pushHost = '';
@@ -191,6 +192,7 @@ class WeixinBot extends EventEmitter {
     URLS = getUrls({ baseHost: this.baseHost, pushHost: this.pushHost });
 
     debug('开始循环拉取新消息');
+    this.emit('online');
     this.runLoop();
 
     // auto update Contacts every ten minute
@@ -496,7 +498,7 @@ class WeixinBot extends EventEmitter {
     this.friendCount = 0;
     data.MemberList.forEach((member) => {
       this.Members.insert(member);
-      
+
       const userName = member.UserName;
       debug('fetchContact: userName=%s', userName);
 
@@ -595,10 +597,10 @@ class WeixinBot extends EventEmitter {
 
   async getMember(id) {
     debug('getMember: %s', id);
-    
+
     const member = await this.Members.findOneAsync({ UserName: id });
-    
-    return member; 
+
+    return member;
   }
 
   async getGroup(groupId) {
@@ -639,17 +641,17 @@ class WeixinBot extends EventEmitter {
   }
 
   async handleMsg(msg) {
-    
+
     const emit = (type, msg) => {
       this.emit(type, fixIncommingMessage(msg));
     };
-    
+
     if (msg.FromUserName === msg.ToUserName) {
       debug('系统消息 %j', msg.Content);
       emit('system', msg);
-      return;  
+      return;
     }
-    
+
     if (msg.FromUserName.includes('@@')) {
       const userId = msg.Content.match(/^(@[a-zA-Z0-9]+|[a-zA-Z0-9_-]+):<br\/>/)[1];
       msg.GroupMember = await this.getGroupMember(userId, msg.FromUserName);
