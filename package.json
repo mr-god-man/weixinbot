@@ -1,6 +1,6 @@
 {
   "name": "weixinbot2",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Robot for Wechat personal chat (forked from feit's weixinbot)",
   "main": "./lib/weixinbot.js",
   "scripts": {
