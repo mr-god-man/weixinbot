@@ -9,19 +9,15 @@
  * @author Zongmin Lei <leizongmin@gmail.com>
  */
 
-import os from 'os';
 import url from 'url';
 import path from 'path';
-import zlib from 'zlib';
 import mkdirp from 'mkdirp';
 import createDebug from 'debug';
-import touch from 'touch';
 import Promise from 'bluebird';
 import EventEmitter from 'events';
-import RequestPromise from 'request-promise';
-import FileCookieStore from 'tough-cookie-filestore';
 import xml2json from 'xml2json';
 import SimpleStore from './db';
+import rp from './request';
 
 import { getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST } from './conf';
 
@@ -29,40 +25,7 @@ const debug = createDebug('weixinbot2:core');
 
 let URLS = getUrls({});
 
-// try persistent cookie
-const cookiePath = path.join(os.tmpdir(), `${Date.now()}.${Math.random()}.cookie.json`);
-let jar;
-try {
-  touch.sync(cookiePath);
-  jar = RequestPromise.jar(new FileCookieStore(cookiePath));
-} catch (e) {
-  jar = RequestPromise.jar();
-}
 
-const rp = RequestPromise.defaults({
-  headers: {
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Encoding': 'gzip, deflate',
-    'Accept-Language': 'zh-CN,zh;q=0.8,en;q=0.6,zh-TW;q=0.4',
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) ' +
-    'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2652.0 Safari/537.36',
-  },
-
-  jar,
-  encoding: null,
-  transform(buf, response) {
-    if (response.headers['content-encoding'] === 'deflate') {
-      const str = zlib.inflateRawSync(buf).toString();
-      try {
-        return JSON.parse(str);
-      } catch (e) {
-        return str;
-      }
-    }
-
-    return buf.toString();
-  },
-});
 
 const makeDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
 
