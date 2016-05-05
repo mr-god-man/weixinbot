@@ -1,4 +1,5 @@
-# Robot for Wechat personal chat (fork from [feit's weixinbot](https://github.com/feit/Weixinbot))
+# Robot for Wechat personal chat
+# (fork from [feit's weixinbot](https://github.com/feit/Weixinbot))
 
 ## Install
 
@@ -18,17 +19,28 @@ const Weixinbot = require('weixinbot2')
 
 const bot = new Weixinbot()
 
-bot.on('qrcode', (qrcodeUrl) => {
+bot.on('qrcode', qrcodeUrl => {
+  // get the login qrcode url
+  // open this url on browser and scan on your Wechat
   console.log(qrcodeUrl)
 });
 
-bot.on('friend', (msg) => {
+bot.on('offline', () => {
+  // account offline
+});
+
+bot.on('online', () => {
+  //  account online
+});
+
+bot.on('friend', msg => {
   console.log(msg.Member.NickName + ': ' + msg.Content)
   bot.sendText(msg.FromUserName, 'Got it')
 });
 // group: group message
 // system: system message
 
+// start run loop
 bot.run()
 ```
 
