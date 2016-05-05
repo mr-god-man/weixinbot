@@ -17,7 +17,10 @@ $ npm install weixinbot2 --save
 
 const Weixinbot = require('weixinbot2')
 
-const bot = new Weixinbot()
+const bot = new Weixinbot({
+  dataPath: './',  // data path, will store contacts data to improve experience
+  updateContactInterval: 60000,
+})
 
 bot.on('qrcode', qrcodeUrl => {
   // get the login qrcode url

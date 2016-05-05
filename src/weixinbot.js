@@ -13,6 +13,7 @@ import os from 'os';
 import url from 'url';
 import path from 'path';
 import zlib from 'zlib';
+import mkdirp from 'mkdirp';
 import createDebug from 'debug';
 import touch from 'touch';
 import Promise from 'bluebird';
@@ -108,9 +109,56 @@ function fixIncommingMessage(msg) {
 
 class WeixinBot extends EventEmitter {
 
+  /**
+   * WeixinBot
+   *
+   * @param {Object} options
+   *   - {String} dataPath
+   *   - {Number} updateContactInterval
+   */
   constructor(options = {}) {
     super();
     Object.assign(this, CODES);
+    this._options = options;
+    options.updateContactInterval = options.updateContactInterval || 1000 * 600;
+  }
+
+  async initStore() {
+
+    const uin = this.my.Uin;
+    const dataDir = path.resolve(this._options.dataPath, `uin_${uin}`);
+    mkdirp.sync(dataDir);
+    console.log(this.my);
+
+    const getDataFileName = name => {
+      if (this._options.dataPath) {
+        return path.resolve(dataDir, `${name}.json`);
+      } else {
+        return null;
+      }
+    }
+
+    // member store
+    this.Members = new SimpleStore('UserName', getDataFileName('Members'));
+    this.Contacts = new SimpleStore('UserName', getDataFileName('Contacts'));
+    this.Groups = new SimpleStore('UserName', getDataFileName('Groups'));
+    this.GroupMembers = new SimpleStore(['UserName', 'GroupUserName'], getDataFileName('GroupMembers'));
+    this.Brands = new SimpleStore('UserName', getDataFileName('Brands')); // 公众帐号
+    this.SPs = new SimpleStore('UserName', getDataFileName('SPs')); // 特殊帐号
+
+  }
+
+  async saveData() {
+
+    debug('正在保存数据...');
+    this.Members.saveToFileIfModified();
+    this.Contacts.saveToFileIfModified();
+    this.Groups.saveToFileIfModified();
+    this.GroupMembers.saveToFileIfModified();
+    this.Brands.saveToFileIfModified();
+    this.SPs.saveToFileIfModified();
+    debug('保存数据成功!');
+
   }
 
   async run() {
@@ -129,14 +177,6 @@ class WeixinBot extends EventEmitter {
     this.my = null;
     this.syncKey = null;
     this.formateSyncKey = '';
-
-    // member store
-    this.Members = new SimpleStore('UserName');
-    this.Contacts = new SimpleStore('UserName');
-    this.Groups = new SimpleStore('UserName');
-    this.GroupMembers = new SimpleStore('UserName', 'GroupUserName');
-    this.Brands = new SimpleStore('UserName'); // 公众帐号
-    this.SPs = new SimpleStore('UserName'); // 特殊帐号
 
     clearTimeout(this.checkSyncTimer);
     clearInterval(this.updataContactTimer);
@@ -176,6 +216,7 @@ class WeixinBot extends EventEmitter {
     }
 
     try {
+
       debug('正在获取凭据...');
       await this.fetchTickets();
       debug('获取凭据成功!');
@@ -184,18 +225,26 @@ class WeixinBot extends EventEmitter {
       await this.webwxinit();
       debug('初始化成功!');
 
+      debug('初始化存储...');
+      await this.initStore();
+      debug('初始化存储成功!');
+
       debug('正在通知客户端网页端已登录...');
       await this.notifyMobile();
       debug('通知成功!');
 
       debug('正在获取通讯录列表...');
-      await this.fetchContact();
+      await this.updateContact();
       debug('获取通讯录列表成功!');
 
-      // await this.fetchBatchgetContact();
+      debug('正在存储数据...');
+      await this.saveData();
+      debug('存储数据成功!');
+
       this.pushHost = await this.lookupSyncCheckHost();
+
     } catch (e) {
-      debug('初始化主要参数步骤出错，正在重新登录...', e);
+      debug('初始化主要参数步骤出错，正在重新登录... %s', e && e.stack || e);
       this.run();
       return;
     }
@@ -209,7 +258,7 @@ class WeixinBot extends EventEmitter {
     // auto update Contacts every ten minute
     this.updataContactTimer = setInterval(() => {
       this.updateContact();
-    }, 1000 * 60 * 10);
+    }, this._options.updateContactInterval);
   }
 
   async runLoop() {
@@ -508,32 +557,32 @@ class WeixinBot extends EventEmitter {
     this.groupCount = 0;
     this.friendCount = 0;
     data.MemberList.forEach((member) => {
-      this.Members.add(member);
+      this.Members.save(member);
 
       const userName = member.UserName;
       debug('fetchContact: userName=%s', userName);
 
       if (member.VerifyFlag & CODES.MM_USERATTRVERIFYFALG_BIZ_BRAND) {
         this.brandCount += 1;
-        this.Brands.add(member);
+        this.Brands.save(member);
         return;
       }
 
       if (SP_ACCOUNTS.includes(userName) || /@qqim$/.test(userName)) {
         this.spCount += 1;
-        this.SPs.add(member);
+        this.SPs.save(member);
         return;
       }
 
       if (userName.includes('@@')) {
         this.groupCount += 1;
-        this.Groups.add(member);
+        this.Groups.save(member);
         return;
       }
 
       if (userName !== this.my.UserName) {
         this.friendCount += 1;
-        this.Contacts.add(member);
+        this.Contacts.save(member);
       }
     });
 
@@ -548,6 +597,8 @@ class WeixinBot extends EventEmitter {
   }
 
   async fetchBatchgetContact(groupIds) {
+
+    debug('fetchBatchgetContact...');
     const list = groupIds.map((id) => ({ UserName: id, EncryChatRoomId: '' }));
     let data;
     try {
@@ -577,30 +628,37 @@ class WeixinBot extends EventEmitter {
     }
 
     data.ContactList.forEach((Group) => {
-      this.Groups.add(Group);
+      this.Groups.save(Group);
       debug(`获取到群: ${Group.NickName}`);
       debug(`群 ${Group.NickName} 成员数量: ${Group.MemberList.length}`);
 
       const { MemberList } = Group;
       MemberList.forEach((member) => {
         member.GroupUserName = Group.UserName;
-        this.GroupMembers.update([member.UserName, member.GroupUserName], member);
+        this.GroupMembers.save(member);
       });
     });
+
   }
 
   async updateContact() {
+
     debug('正在更新通讯录');
+
     try {
+
       await this.fetchContact();
 
       const groups = this.Groups.list();
       const groupIds = groups.map((group) => group.UserName);
       await this.fetchBatchgetContact(groupIds);
+
     } catch (e) {
       debug('更新通讯录失败', e);
     }
     debug('更新通讯录成功!');
+
+    await this.saveData();
   }
 
   async getMember(id) {
@@ -629,9 +687,10 @@ class WeixinBot extends EventEmitter {
   }
 
   async getGroupMember(id, groupId) {
-    let member = this.GroupMembers.get(id, groupId);
-
-    if (member) return member;
+    {
+      const member = this.GroupMembers.get(id, groupId);
+      if (member) return member;
+    }
 
     try {
       await this.fetchBatchgetContact([groupId]);
@@ -640,9 +699,10 @@ class WeixinBot extends EventEmitter {
       return null;
     }
 
-    member = this.GroupMembers.list().filter(v => v.UserName === id)[0];
-
-    return member;
+    {
+      const member = this.GroupMembers.list().filter(v => v.UserName === id)[0];
+      return member;
+    }
   }
 
   async handleMsg(msg) {
