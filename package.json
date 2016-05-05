@@ -23,7 +23,6 @@
     "bluebird": "^3.3.3",
     "debug": "^2.2.0",
     "mkdirp": "^0.5.1",
-    "nodemailer": "^2.2.1",
     "request-promise": "^2.0.0",
     "touch": "^1.0.0",
     "tough-cookie-filestore": "0.0.1",
