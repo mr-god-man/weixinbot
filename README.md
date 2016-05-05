@@ -1,7 +1,7 @@
 # Robot for Wechat personal chat
-# (fork from [feit's weixinbot](https://github.com/feit/Weixinbot))
+**This project was fork from [feit's weixinbot](https://github.com/feit/Weixinbot)**
 
-## Install
+## Installation
 
 ```bash
 $ npm install weixinbot2 --save
