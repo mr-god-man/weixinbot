@@ -100,7 +100,7 @@ class WeixinBot extends EventEmitter {
     const uin = this.my.Uin;
     const dataDir = path.resolve(this._options.dataPath, `uin_${uin}`);
     mkdirp.sync(dataDir);
-    console.log(this.my);
+    debug('initStore, my=%j', this.my);
 
     const getDataFileName = name => {
       if (this._options.dataPath) {
