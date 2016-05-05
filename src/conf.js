@@ -3,7 +3,7 @@
 /**
  * weixinbot2
  *
- * This project fork from https://github.com/feit/Weixinbot
+ * This project was forked from https://github.com/feit/Weixinbot
  * Thanks for feit's weixinbot
  *
  * @author Zongmin Lei <leizongmin@gmail.com>

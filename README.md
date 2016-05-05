@@ -1,5 +1,5 @@
 # Robot for Wechat personal chat
-**This project was fork from [feit's weixinbot](https://github.com/feit/Weixinbot)**
+**This project was forked from [feit's weixinbot](https://github.com/feit/Weixinbot)**
 
 ## Installation
 
