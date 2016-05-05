@@ -7,7 +7,7 @@
 $ npm install weixinbot2 --save
 ```
 
-**Require Nodejs v4+**
+**Required Nodejs v4+**
 
 
 ## Usage
