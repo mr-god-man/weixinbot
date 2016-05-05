@@ -1,3 +1,14 @@
+'use strict';
+
+/**
+ * weixinbot2
+ *
+ * This project fork from https://github.com/feit/Weixinbot
+ * Thanks for feit's weixinbot
+ *
+ * @author Zongmin Lei <leizongmin@gmail.com>
+ */
+
 import os from 'os';
 import url from 'url';
 import path from 'path';

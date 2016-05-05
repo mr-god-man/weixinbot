@@ -1,3 +1,14 @@
+'use strict';
+
+/**
+ * weixinbot2
+ *
+ * This project fork from https://github.com/feit/Weixinbot
+ * Thanks for feit's weixinbot
+ *
+ * @author Zongmin Lei <leizongmin@gmail.com>
+ */
+
 /* eslint-disable prefer-template */
 
 export function getUrls({
