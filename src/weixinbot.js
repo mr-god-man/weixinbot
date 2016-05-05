@@ -15,7 +15,7 @@ import mkdirp from 'mkdirp';
 import createDebug from 'debug';
 import Promise from 'bluebird';
 import EventEmitter from 'events';
-import xml2json from 'xml2json';
+import xml2js from 'xml2js';
 import SimpleStore from './db';
 import rp from './request';
 
@@ -30,11 +30,20 @@ let URLS = getUrls({});
 const makeDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
 
 function parseContent(input) {
-  if (/^&lt;.*&gt;$/.test(input)) {
-    return JSON.parse(xml2json.toJson(input.replace(/&lt;/g, '<').replace(/&gt;/g, '>')));
-  } else {
-    return input;
-  }
+  return new Promise((resolve, reject) => {
+    if (/^&lt;.*&gt;$/.test(input)) {
+      input = input.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      xml2js.parseString(input, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    } else {
+      resolve(input);
+    }
+  });
 }
 
 function parseEmoji(input) {
@@ -49,8 +58,8 @@ function parseEmoji(input) {
 }
 
 // 用于处理收到的消息，比如替换Emoji字符等
-function fixIncommingMessage(msg) {
-  msg.Content = parseContent(msg.Content);
+async function fixIncommingMessage(msg) {
+  msg.Content = await parseContent(msg.Content);
   if (typeof msg.Content === 'string') {
     msg.Content = parseEmoji(msg.Content);
   }
@@ -670,11 +679,12 @@ class WeixinBot extends EventEmitter {
 
   async handleMsg(msg) {
 
-    const emit = (type, msg) => {
+    const emit = async (type, msg) => {
       if ('Member' in msg && !msg.Member) msg.Member = {};
       if ('Group' in msg && !msg.Group) msg.Group = {};
       if ('GroupMember' in msg && !msg.GroupMember) msg.GroupMember = {};
-      this.emit(type, fixIncommingMessage(msg));
+      msg = await fixIncommingMessage(msg);
+      this.emit(type, msg);
     };
 
     if (msg.FromUserName === msg.ToUserName) {
