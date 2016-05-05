@@ -11,7 +11,8 @@
 
 import os from 'os';
 import path from 'path';
-import touch from 'touch';
+import fs from 'fs';
+import mkdirp from 'mkdirp';
 import zlib from 'zlib';
 import RequestPromise from 'request-promise';
 import FileCookieStore from 'tough-cookie-filestore';
@@ -21,7 +22,9 @@ import FileCookieStore from 'tough-cookie-filestore';
 const cookiePath = path.join(os.tmpdir(), `${Date.now()}.${Math.random()}.cookie.json`);
 let jar;
 try {
-  touch.sync(cookiePath);
+  if (!fs.existsSync(cookiePath)) {
+    mkdirp.sync(path.dirname(cookiePath));
+  }
   jar = RequestPromise.jar(new FileCookieStore(cookiePath));
 } catch (e) {
   jar = RequestPromise.jar();
