@@ -19,7 +19,7 @@ import xml2js from 'xml2js';
 import SimpleStore from './db';
 import rp from './request';
 
-import { getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST } from './conf';
+import {getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST} from './conf';
 
 const debug = createDebug('weixinbot2:core');
 
@@ -89,10 +89,13 @@ class WeixinBot extends EventEmitter {
    *   - {Number} updateContactInterval
    */
   constructor(options = {}) {
+
     super();
+
     Object.assign(this, CODES);
     this._options = options;
     options.updateContactInterval = options.updateContactInterval || 1000 * 600;
+
   }
 
   async initStore() {
@@ -134,6 +137,7 @@ class WeixinBot extends EventEmitter {
   }
 
   async run() {
+
     debug('开始登录...');
     this.emit('offline');
 
@@ -216,12 +220,14 @@ class WeixinBot extends EventEmitter {
       this.pushHost = await this.lookupSyncCheckHost();
 
     } catch (e) {
+
       debug('初始化主要参数步骤出错，正在重新登录... %s', e && e.stack || e);
       this.run();
       return;
+
     }
 
-    URLS = getUrls({ baseHost: this.baseHost, pushHost: this.pushHost });
+    URLS = getUrls({baseHost: this.baseHost, pushHost: this.pushHost});
 
     debug('开始循环拉取新消息');
     this.emit('online');
@@ -231,10 +237,12 @@ class WeixinBot extends EventEmitter {
     this.updataContactTimer = setInterval(() => {
       this.updateContact();
     }, this._options.updateContactInterval);
+
   }
 
   async runLoop() {
-    const { selector, retcode } = await this.syncCheck();
+
+    const {selector, retcode} = await this.syncCheck();
     if (retcode !== '0') {
       debug('你在其他地方登录或登出了微信，正在尝试重新登录...');
       this.run();
@@ -251,10 +259,12 @@ class WeixinBot extends EventEmitter {
 
     this.checkSyncTimer = setTimeout(() => {
       this.runLoop();
-    }, 3e3);
+    }, 3000);
+
   }
 
   async checkLoginStep() {
+
     let data;
     try {
       data = await rp({
@@ -279,7 +289,7 @@ class WeixinBot extends EventEmitter {
         debug('已点击确认登录!');
         this.redirectUri = data.match(/redirect_uri="(.+)";$/)[1] + '&fun=new&version=v2';
         this.baseHost = url.parse(this.redirectUri).host;
-        URLS = getUrls({ baseHost: this.baseHost });
+        URLS = getUrls({baseHost: this.baseHost});
         break;
 
       case 201:
@@ -295,9 +305,11 @@ class WeixinBot extends EventEmitter {
     }
 
     return loginCode;
+
   }
 
   async webwxinit() {
+
     let data;
     try {
       data = await rp({
@@ -322,9 +334,11 @@ class WeixinBot extends EventEmitter {
     this.my = data.User;
     this.syncKey = data.SyncKey;
     this.formateSyncKey = this.syncKey.List.map((item) => item.Key + '_' + item.Val).join('|');
+
   }
 
   async webwxsync() {
+
     let data;
     try {
       data = await rp({
@@ -356,9 +370,11 @@ class WeixinBot extends EventEmitter {
     } catch (e) {
       debug('webwxsync handleMsg error: %s', e.stack);
     }
+
   }
 
   async lookupSyncCheckHost() {
+
     for (const host of PUSH_HOST_LIST) {
       let data;
       try {
@@ -372,7 +388,7 @@ class WeixinBot extends EventEmitter {
             deviceid: makeDeviceID(),
             synckey: this.formateSyncKey,
           },
-          timeout: 35e3,
+          timeout: 35000,
         });
       } catch (e) {
         debug('lookupSyncCheckHost network error', e);
@@ -384,9 +400,11 @@ class WeixinBot extends EventEmitter {
       const retcode = data.match(/retcode:"(\d+)"/)[1];
       if (retcode === '0') return host;
     }
+
   }
 
   async syncCheck() {
+
     let data;
     try {
       data = await rp({
@@ -410,10 +428,12 @@ class WeixinBot extends EventEmitter {
     const retcode = data.match(/retcode:"(\d+)"/)[1];
     const selector = data.match(/selector:"(\d+)"/)[1];
 
-    return { retcode, selector };
+    return {retcode, selector};
+
   }
 
   async notifyMobile() {
+
     let data;
     try {
       data = await rp({
@@ -438,9 +458,11 @@ class WeixinBot extends EventEmitter {
     if (!data || !data.BaseResponse || data.BaseResponse.Ret !== 0) {
       throw new Error('Notify mobile fail');
     }
+
   }
 
   async fetchUUID() {
+
     let data;
     try {
       data = await rp(URLS.API_jsLogin);
@@ -456,9 +478,11 @@ class WeixinBot extends EventEmitter {
 
     const uuid = data.match(/uuid = "(.+)";$/)[1];
     return uuid;
+
   }
 
   async fetchTickets() {
+
     let data;
     try {
       data = await rp(this.redirectUri);
@@ -498,9 +522,11 @@ class WeixinBot extends EventEmitter {
       Skey: this.skey,
       DeviceID: makeDeviceID(),
     };
+
   }
 
   async fetchContact() {
+
     let data;
     try {
       data = await rp({
@@ -566,12 +592,13 @@ class WeixinBot extends EventEmitter {
       通讯录好友数: ${this.friendCount}
       加入的群聊数(不准确，只有把群聊加入通讯录才会在这里显示): ${this.groupCount}
     `);
+
   }
 
   async fetchBatchgetContact(groupIds) {
 
     debug('fetchBatchgetContact...');
-    const list = groupIds.map((id) => ({ UserName: id, EncryChatRoomId: '' }));
+    const list = groupIds.map((id) => ({UserName: id, EncryChatRoomId: ''}));
     let data;
     try {
       data = await rp({
@@ -604,7 +631,7 @@ class WeixinBot extends EventEmitter {
       debug(`获取到群: ${Group.NickName}`);
       debug(`群 ${Group.NickName} 成员数量: ${Group.MemberList.length}`);
 
-      const { MemberList } = Group;
+      const {MemberList} = Group;
       MemberList.forEach((member) => {
         member.GroupUserName = Group.UserName;
         this.GroupMembers.save(member);
@@ -631,17 +658,19 @@ class WeixinBot extends EventEmitter {
     debug('更新通讯录成功!');
 
     await this.saveData();
+
   }
 
   async getMember(id) {
+
     debug('getMember: %s', id);
-
     const member = this.Members.get(id);
-
     return member;
+
   }
 
   async getGroup(groupId) {
+
     let group = this.Groups.get(groupId);
 
     if (group) return group;
@@ -656,6 +685,7 @@ class WeixinBot extends EventEmitter {
     group = this.Groups.get(groupId);
 
     return group;
+
   }
 
   async getGroupMember(id, groupId) {
@@ -760,6 +790,7 @@ class WeixinBot extends EventEmitter {
   }
 
   sendText(to, content, callback) {
+
     const clientMsgId = (Date.now() + Math.random().toFixed(3)).replace('.', '');
 
     rp({
@@ -793,6 +824,7 @@ class WeixinBot extends EventEmitter {
       this.sendText(to, content, callback);
       return;
     });
+
   }
 }
 
