@@ -9,6 +9,7 @@
  * @author Zongmin Lei <leizongmin@gmail.com>
  */
 
+import fs from 'fs';
 import url from 'url';
 import path from 'path';
 import mkdirp from 'mkdirp';
@@ -17,11 +18,10 @@ import Promise from 'bluebird';
 import EventEmitter from 'events';
 import SimpleStore from './db';
 import rp from './request';
-import {fixIncommingMessage, makeDeviceID} from './utils';
+import {fixIncommingMessage, makeDeviceID, readJSONFileSync, writeJSONFile} from './utils';
 import {getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST} from './conf';
 
 const debug = createDebug('weixinbot2:core');
-let URLS = getUrls({});
 
 
 export default class WeixinBot extends EventEmitter {
@@ -32,7 +32,6 @@ export default class WeixinBot extends EventEmitter {
    * @param {Object} options
    *   - {String} dataPath
    *   - {Number} updateContactInterval
-   *   - {Boolean} recoveryStatus
    */
   constructor(options = {}) {
 
@@ -42,14 +41,16 @@ export default class WeixinBot extends EventEmitter {
     this._options = options;
     options.updateContactInterval = options.updateContactInterval || 1000 * 600;
 
+    this.timer = {};
+
   }
 
   async initStore() {
 
-    const uin = this.my.Uin;
+    const uin = this.status.me.Uin;
     const dataDir = path.resolve(this._options.dataPath, `uin_${uin}`);
     mkdirp.sync(dataDir);
-    debug('initStore, my=%j', this.my);
+    debug('initStore: my=%j', this.status.me);
 
     const getDataFileName = name => {
       if (this._options.dataPath) {
@@ -84,30 +85,57 @@ export default class WeixinBot extends EventEmitter {
 
   async initStatus() {
 
-    this.baseHost = '';
-    this.pushHost = '';
-    this.uuid = '';
-    this.redirectUri = '';
-    this.skey = '';
-    this.sid = '';
-    this.uin = '';
-    this.passTicket = '';
-    this.baseRequest = null;
-    this.my = null;
-    this.syncKey = null;
-    this.formateSyncKey = '';
+    debug('initStatus');
+    this.status = {};
+    this.status.baseHost = '';
+    this.status.pushHost = '';
+    this.status.uuid = '';
+    this.status.redirectUri = '';
+    this.status.skey = '';
+    this.status.sid = '';
+    this.status.uin = '';
+    this.status.passTicket = '';
+    this.status.baseRequest = null;
+    this.status.me = null;
+    this.status.syncKey = null;
+    this.status.formateSyncKey = '';
+    this.status.URLS = getUrls({});
 
   }
 
-  async recoveryStatus() {
+  async resurrect() {
 
+    debug('正在载入已保存的登录状态...');
+    if (this._options.dataPath) {
+      const file = path.resolve(this._options.dataPath, 'status.json');
+      if (fs.existsSync(file)) {
+        this.status = readJSONFileSync(file);
+      }
+    }
 
+    if (this.status && this.status.me && this.status.me.Uin) {
+
+      debug('正在载入已保存的通讯录...');
+      this.initStore();
+
+      debug('正在恢复登录状态...');
+      this.startRunLoop();
+
+    } else {
+
+      debug('无法恢复登录状态!');
+      this.run();
+
+    }
 
   }
 
   async saveStatus() {
 
-
+    debug('正在保存登录状态...');
+    const file = path.resolve(this._options.dataPath, 'status.json');
+    await writeJSONFile(file, this.status);
+    debug('保存登录状态成功!');
 
   }
 
@@ -122,27 +150,27 @@ export default class WeixinBot extends EventEmitter {
     clearInterval(this.updataContactTimer);
 
     try {
-      this.uuid = await this.fetchUUID();
+      this.status.uuid = await this.fetchUUID();
     } catch (e) {
       debug('fetch uuid error', e);
       this.run();
       return;
     }
 
-    if (!this.uuid) {
+    if (!this.status.uuid) {
       debug('获取 uuid 失败，正在重试...');
       this.run();
       return;
     }
 
-    debug(`获得 uuid -> ${this.uuid}`);
+    debug(`获得 uuid -> ${this.status.uuid}`);
 
-    const qrcodeUrl = URLS.QRCODE_PATH + this.uuid;
+    const qrcodeUrl = this.status.URLS.QRCODE_PATH + this.status.uuid;
     debug('登录二维码：%s', qrcodeUrl);
     this.emit('qrcode', qrcodeUrl);
 
     // limit check times
-    this.checkTimes = 0;
+    this.status.checkTimes = 0;
     while (true) {
       const loginCode = await this.checkLoginStep();
       if (loginCode === 200) break;
@@ -182,7 +210,7 @@ export default class WeixinBot extends EventEmitter {
       await this.saveData();
       debug('存储数据成功!');
 
-      this.pushHost = await this.lookupSyncCheckHost();
+      this.status.pushHost = await this.lookupSyncCheckHost();
 
     } catch (e) {
 
@@ -192,14 +220,23 @@ export default class WeixinBot extends EventEmitter {
 
     }
 
-    URLS = getUrls({baseHost: this.baseHost, pushHost: this.pushHost});
+    this.status.URLS = getUrls({baseHost: this.status.baseHost, pushHost: this.status.pushHost});
+
+    this.startRunLoop();
+
+  }
+
+  async startRunLoop() {
 
     debug('开始循环拉取新消息');
     this.emit('online');
     this.runLoop();
 
     // auto update Contacts every ten minute
-    this.updataContactTimer = setInterval(() => {
+    if (this.timer.updataContact) {
+      clearInterval(this.timer.updataContact);
+    }
+    this.timer.updataContact = setInterval(() => {
       this.updateContact();
     }, this._options.updateContactInterval);
 
@@ -209,7 +246,7 @@ export default class WeixinBot extends EventEmitter {
 
     const {selector, retcode} = await this.syncCheck();
     if (retcode !== '0') {
-      debug('你在其他地方登录或登出了微信，正在尝试重新登录...');
+      debug('你在其他地方登录或登出了微信，正在尝试重新登录... [retcode=%s, selector=%s]', retcode, selector);
       this.run();
       return;
     }
@@ -222,7 +259,7 @@ export default class WeixinBot extends EventEmitter {
       }
     }
 
-    this.checkSyncTimer = setTimeout(() => {
+    this.timer.checkSync = setTimeout(() => {
       this.runLoop();
     }, 3000);
 
@@ -232,10 +269,12 @@ export default class WeixinBot extends EventEmitter {
 
     let data;
     try {
+
       data = await rp({
-        uri: URLS.API_login + `?uuid=${this.uuid}&tip=1&r=${Date.now()}`,
-        timeout: 35e3,
+        uri: this.status.URLS.API_login + `?uuid=${this.status.uuid}&tip=1&r=${Date.now()}`,
+        timeout: 35000,
       });
+
     } catch (e) {
       debug('checkLoginStep network error', e);
       await this.checkLoginStep();
@@ -252,9 +291,9 @@ export default class WeixinBot extends EventEmitter {
     switch (loginCode) {
       case 200:
         debug('已点击确认登录!');
-        this.redirectUri = data.match(/redirect_uri="(.+)";$/)[1] + '&fun=new&version=v2';
-        this.baseHost = url.parse(this.redirectUri).host;
-        URLS = getUrls({baseHost: this.baseHost});
+        this.status.redirectUri = data.match(/redirect_uri="(.+)";$/)[1] + '&fun=new&version=v2';
+        this.status.baseHost = url.parse(this.status.redirectUri).host;
+        this.status.URLS = getUrls({baseHost: this.status.baseHost});
         break;
 
       case 201:
@@ -277,14 +316,16 @@ export default class WeixinBot extends EventEmitter {
 
     let data;
     try {
+
       data = await rp({
-        uri: URLS.API_webwxinit,
+        uri: this.status.URLS.API_webwxinit,
         method: 'POST',
         json: true,
         body: {
-          BaseRequest: this.baseRequest,
+          BaseRequest: this.status.baseRequest,
         },
       });
+
     } catch (e) {
       debug('webwxinit network error', e);
       // network error retry
@@ -296,9 +337,9 @@ export default class WeixinBot extends EventEmitter {
       throw new Error('Init Webwx failed');
     }
 
-    this.my = data.User;
-    this.syncKey = data.SyncKey;
-    this.formateSyncKey = this.syncKey.List.map((item) => item.Key + '_' + item.Val).join('|');
+    this.status.me = data.User;
+    this.status.syncKey = data.SyncKey;
+    this.status.formateSyncKey = this.status.syncKey.List.map((item) => item.Key + '_' + item.Val).join('|');
 
   }
 
@@ -306,20 +347,22 @@ export default class WeixinBot extends EventEmitter {
 
     let data;
     try {
+
       data = await rp({
-        uri: URLS.API_webwxsync,
+        uri: this.status.URLS.API_webwxsync,
         method: 'POST',
         qs: {
-          sid: this.sid,
-          skey: this.skey,
+          sid: this.status.sid,
+          skey: this.status.skey,
         },
         json: true,
         body: {
-          BaseRequest: this.baseRequest,
-          SyncKey: this.syncKey,
+          BaseRequest: this.status.baseRequest,
+          SyncKey: this.status.syncKey,
           rr: ~new Date,
         },
       });
+
     } catch (e) {
       debug('webwxsync network error', e);
       // network error retry
@@ -327,14 +370,16 @@ export default class WeixinBot extends EventEmitter {
       return;
     }
 
-    this.syncKey = data.SyncKey;
-    this.formateSyncKey = this.syncKey.List.map((item) => item.Key + '_' + item.Val).join('|');
+    this.status.syncKey = data.SyncKey;
+    this.status.formateSyncKey = this.status.syncKey.List.map((item) => item.Key + '_' + item.Val).join('|');
 
     try {
       data.AddMsgList.forEach((msg) => this.handleMsg(msg));
     } catch (e) {
       debug('webwxsync handleMsg error: %s', e.stack);
     }
+
+    this.saveStatus();
 
   }
 
@@ -347,11 +392,11 @@ export default class WeixinBot extends EventEmitter {
           uri: 'https://' + host + '/cgi-bin/mmwebwx-bin/synccheck',
           qs: {
             r: Date.now(),
-            skey: this.skey,
-            sid: this.sid,
-            uin: this.uin,
+            skey: this.status.skey,
+            sid: this.status.sid,
+            uin: this.status.uin,
             deviceid: makeDeviceID(),
-            synckey: this.formateSyncKey,
+            synckey: this.status.formateSyncKey,
           },
           timeout: 35000,
         });
@@ -372,18 +417,20 @@ export default class WeixinBot extends EventEmitter {
 
     let data;
     try {
+
       data = await rp({
-        uri: URLS.API_synccheck,
+        uri: this.status.URLS.API_synccheck,
         qs: {
           r: Date.now(),
-          skey: this.skey,
-          sid: this.sid,
-          uin: this.uin,
+          skey: this.status.skey,
+          sid: this.status.sid,
+          uin: this.status.uin,
           deviceid: makeDeviceID(),
-          synckey: this.formateSyncKey,
+          synckey: this.status.formateSyncKey,
         },
-        timeout: 35e3,
+        timeout: 35000,
       });
+
     } catch (e) {
       debug('synccheck network error', e);
       // network error retry
@@ -401,18 +448,20 @@ export default class WeixinBot extends EventEmitter {
 
     let data;
     try {
+
       data = await rp({
-        uri: URLS.API_webwxstatusnotify,
+        uri: this.status.URLS.API_webwxstatusnotify,
         method: 'POST',
         json: true,
         body: {
-          BaseRequest: this.baseRequest,
+          BaseRequest: this.status.baseRequest,
           Code: CODES.StatusNotifyCode_INITED,
-          FromUserName: this.my.UserName,
-          ToUserName: this.my.UserName,
+          FromUserName: this.status.me.UserName,
+          ToUserName: this.status.me.UserName,
           ClientMsgId: Date.now(),
         },
       });
+
     } catch (e) {
       debug('notify mobile network error', e);
       // network error retry
@@ -430,7 +479,7 @@ export default class WeixinBot extends EventEmitter {
 
     let data;
     try {
-      data = await rp(URLS.API_jsLogin);
+      data = await rp(this.status.URLS.API_jsLogin);
     } catch (e) {
       debug('fetch uuid network error', e);
       // network error retry
@@ -450,7 +499,7 @@ export default class WeixinBot extends EventEmitter {
 
     let data;
     try {
-      data = await rp(this.redirectUri);
+      data = await rp(this.status.redirectUri);
     } catch (e) {
       debug('fetch tickets network error', e);
       // network error, retry
@@ -470,21 +519,21 @@ export default class WeixinBot extends EventEmitter {
     const passTicketM = data.match(/<pass_ticket>(.*)<\/pass_ticket>/);
     // const redirectUrl = data.match(/<redirect_url>(.*)<\/redirect_url>/);
 
-    this.skey = skeyM && skeyM[1];
-    this.sid = wxsidM && wxsidM[1];
-    this.uin = wxuinM && wxuinM[1];
-    this.passTicket = passTicketM && passTicketM[1];
+    this.status.skey = skeyM && skeyM[1];
+    this.status.sid = wxsidM && wxsidM[1];
+    this.status.uin = wxuinM && wxuinM[1];
+    this.status.passTicket = passTicketM && passTicketM[1];
     debug(`
-      获得 skey -> ${this.skey}
-      获得 sid -> ${this.sid}
-      获得 uid -> ${this.uin}
-      获得 pass_ticket -> ${this.passTicket}
+      获得 skey -> ${this.status.skey}
+      获得 sid -> ${this.status.sid}
+      获得 uid -> ${this.status.uin}
+      获得 pass_ticket -> ${this.status.passTicket}
     `);
 
-    this.baseRequest = {
-      Uin: parseInt(this.uin, 10),
-      Sid: this.sid,
-      Skey: this.skey,
+    this.status.baseRequest = {
+      Uin: parseInt(this.status.uin, 10),
+      Sid: this.status.sid,
+      Skey: this.status.skey,
       DeviceID: makeDeviceID(),
     };
 
@@ -494,15 +543,17 @@ export default class WeixinBot extends EventEmitter {
 
     let data;
     try {
+
       data = await rp({
-        uri: URLS.API_webwxgetcontact,
+        uri: this.status.URLS.API_webwxgetcontact,
         qs: {
-          skey: this.skey,
-          pass_ticket: this.passTicket,
+          skey: this.status.skey,
+          pass_ticket: this.status.passTicket,
           seq: 0,
           r: Date.now(),
         },
       });
+
     } catch (e) {
       debug('fetch contact network error', e);
       // network error retry
@@ -514,11 +565,11 @@ export default class WeixinBot extends EventEmitter {
       throw new Error('Fetch contact fail');
     }
 
-    this.totalMemberCount = data.MemberList.length;
-    this.brandCount = 0;
-    this.spCount = 0;
-    this.groupCount = 0;
-    this.friendCount = 0;
+    this.status.totalMemberCount = data.MemberList.length;
+    this.status.brandCount = 0;
+    this.status.spCount = 0;
+    this.status.groupCount = 0;
+    this.status.friendCount = 0;
     data.MemberList.forEach((member) => {
       this.Members.save(member);
 
@@ -543,7 +594,7 @@ export default class WeixinBot extends EventEmitter {
         return;
       }
 
-      if (userName !== this.my.UserName) {
+      if (userName !== this.status.me.UserName) {
         this.friendCount += 1;
         this.Contacts.save(member);
       }
@@ -568,14 +619,14 @@ export default class WeixinBot extends EventEmitter {
     try {
       data = await rp({
         method: 'POST',
-        uri: URLS.API_webwxbatchgetcontact,
+        uri: this.status.URLS.API_webwxbatchgetcontact,
         qs: {
           type: 'ex',
           r: Date.now(),
         },
         json: true,
         body: {
-          BaseRequest: this.baseRequest,
+          BaseRequest: this.status.baseRequest,
           Count: list.length,
           List: list,
         },
@@ -759,18 +810,18 @@ export default class WeixinBot extends EventEmitter {
     const clientMsgId = (Date.now() + Math.random().toFixed(3)).replace('.', '');
 
     rp({
-      uri: URLS.API_webwxsendmsg,
+      uri: this.status.URLS.API_webwxsendmsg,
       method: 'POST',
       qs: {
-        pass_ticket: this.passTicket,
+        pass_ticket: this.status.passTicket,
       },
       json: true,
       body: {
-        BaseRequest: this.baseRequest,
+        BaseRequest: this.status.baseRequest,
         Msg: {
           Type: CODES.MSGTYPE_TEXT,
           Content: content,
-          FromUserName: this.my.UserName,
+          FromUserName: this.status.me.UserName,
           ToUserName: to,
           LocalID: clientMsgId,
           ClientMsgId: clientMsgId,

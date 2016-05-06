@@ -6,6 +6,7 @@
  * @author Zongmin Lei <leizongmin@gmail.com>
  */
 
+import fs from 'fs';
 import xml2js from 'xml2js';
 import createDebug from 'debug';
 
@@ -63,4 +64,16 @@ export async function fixIncommingMessage(msg) {
     msg.GroupMember.NickName = parseEmoji(msg.GroupMember.NickName);
   }
   return msg;
+}
+
+export function readJSONFileSync(file) {
+  return JSON.parse(fs.readFileSync(file).toString());
+}
+
+export function writeJSONFile(file, data) {
+  return new Promise((resolve, reject) => {
+    fs.writeFile(file, JSON.stringify(data), err => {
+      err ? reject(err) : resolve();
+    });
+  });
 }
