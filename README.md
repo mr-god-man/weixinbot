@@ -19,7 +19,7 @@ const Weixinbot = require('weixinbot2')
 
 const bot = new Weixinbot({
   dataPath: './',  // data path, will store contacts data to improve experience
-  updateContactInterval: 60000,
+  updateContactInterval: 1000 * 600,
 })
 
 bot.on('qrcode', qrcodeUrl => {
