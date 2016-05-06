@@ -15,71 +15,16 @@ import mkdirp from 'mkdirp';
 import createDebug from 'debug';
 import Promise from 'bluebird';
 import EventEmitter from 'events';
-import xml2js from 'xml2js';
 import SimpleStore from './db';
 import rp from './request';
-
+import {fixIncommingMessage, makeDeviceID} from './utils';
 import {getUrls, CODES, SP_ACCOUNTS, PUSH_HOST_LIST} from './conf';
 
 const debug = createDebug('weixinbot2:core');
-
 let URLS = getUrls({});
 
 
-
-const makeDeviceID = () => 'e' + Math.random().toFixed(15).toString().substring(2, 17);
-
-function parseContent(input) {
-  return new Promise((resolve, reject) => {
-    if (/^&lt;.*&gt;$/.test(input)) {
-      input = input.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-      xml2js.parseString(input, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    } else {
-      resolve(input);
-    }
-  });
-}
-
-function parseEmoji(input) {
-  return input.replace(/(<span class="emoji emoji([a-z0-9A-Z]+)"><\/span>)/g, function (_1, _2, s) {
-    try {
-      return String.fromCodePoint(parseInt(s, 16));
-    } catch (err) {
-      debug('parseEmoji: %s', err);
-    }
-    return s;
-  });
-}
-
-// 用于处理收到的消息，比如替换Emoji字符等
-async function fixIncommingMessage(msg) {
-  msg.Content = await parseContent(msg.Content);
-  if (typeof msg.Content === 'string') {
-    msg.Content = parseEmoji(msg.Content);
-  }
-  if (msg.Member && msg.Member.NickName) {
-    msg.Member.NickName = parseEmoji(msg.Member.NickName);
-  }
-  if (msg.Group && msg.Group.NickName) {
-    msg.Group.NickName = parseEmoji(msg.Group.NickName);
-  }
-  if (msg.Member && msg.Member.NickName) {
-    msg.Member.NickName = parseEmoji(msg.Member.NickName);
-  }
-  if (msg.GroupMember && msg.GroupMember.NickName) {
-    msg.GroupMember.NickName = parseEmoji(msg.GroupMember.NickName);
-  }
-  return msg;
-}
-
-
-class WeixinBot extends EventEmitter {
+export default class WeixinBot extends EventEmitter {
 
   /**
    * WeixinBot
@@ -87,6 +32,7 @@ class WeixinBot extends EventEmitter {
    * @param {Object} options
    *   - {String} dataPath
    *   - {Number} updateContactInterval
+   *   - {Boolean} recoveryStatus
    */
   constructor(options = {}) {
 
@@ -136,10 +82,7 @@ class WeixinBot extends EventEmitter {
 
   }
 
-  async run() {
-
-    debug('开始登录...');
-    this.emit('offline');
+  async initStatus() {
 
     this.baseHost = '';
     this.pushHost = '';
@@ -153,6 +96,27 @@ class WeixinBot extends EventEmitter {
     this.my = null;
     this.syncKey = null;
     this.formateSyncKey = '';
+
+  }
+
+  async recoveryStatus() {
+
+
+
+  }
+
+  async saveStatus() {
+
+
+
+  }
+
+  async run() {
+
+    debug('开始登录...');
+    this.emit('offline');
+
+    await this.initStatus();
 
     clearTimeout(this.checkSyncTimer);
     clearInterval(this.updataContactTimer);
@@ -174,6 +138,7 @@ class WeixinBot extends EventEmitter {
     debug(`获得 uuid -> ${this.uuid}`);
 
     const qrcodeUrl = URLS.QRCODE_PATH + this.uuid;
+    debug('登录二维码：%s', qrcodeUrl);
     this.emit('qrcode', qrcodeUrl);
 
     // limit check times
@@ -827,6 +792,3 @@ class WeixinBot extends EventEmitter {
 
   }
 }
-
-// compatible nodejs require
-module.exports = WeixinBot;
