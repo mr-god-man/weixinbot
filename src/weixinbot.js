@@ -860,7 +860,7 @@ export default class WeixinBot extends EventEmitter {
     }
     var ms = this._middlewares[eventKey];
     if(!ms){
-      ms = [middleware];
+      this._middlewares[eventKey] = [middleware];
     }else{
       ms.push(middleware);
     }

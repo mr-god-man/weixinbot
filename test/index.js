@@ -14,13 +14,13 @@ bot.on('qrcode', qrcodeUrl => {
     child_process.exec('open -a Safari '+qrcodeUrl);
 });
 
-// bot.on('offline', () => {
-//     // account offline
-// });
-//
-// bot.on('online', () => {
-//     //  account online
-// });
+bot.on('offline', () => {
+    console.log('offline');
+});
+
+bot.on('online', () => {
+    console.log('online');
+});
 
 // bot.on('friend', msg => {
 //     console.log(msg.Member.NickName + ': ' + msg.Content)
@@ -28,7 +28,7 @@ bot.on('qrcode', qrcodeUrl => {
 // });
 
 bot.use('friend',require('./../lib/middlewares/calculator'));
-bot.use('friend',require('./../lib/middlewares/reply'));
+// bot.use('friend',require('./../lib/middlewares/reply'));
 // group: group message
 // system: system message
 
