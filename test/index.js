@@ -28,7 +28,7 @@ bot.on('online', () => {
 // });
 
 bot.use('friend',require('./../lib/middlewares/calculator'));
-// bot.use('friend',require('./../lib/middlewares/reply'));
+bot.use('friend',require('./../lib/middlewares/reply'));
 // group: group message
 // system: system message
 
