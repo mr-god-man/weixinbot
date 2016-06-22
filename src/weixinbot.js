@@ -14,6 +14,7 @@ import url from 'url';
 import path from 'path';
 import mkdirp from 'mkdirp';
 import createDebug from 'debug';
+import async from 'async';
 import Promise from 'bluebird';
 import EventEmitter from 'events';
 import SimpleStore from './db';
@@ -40,7 +41,12 @@ export default class WeixinBot extends EventEmitter {
     Object.assign(this, CODES);
     this._options = options;
     options.updateContactInterval = options.updateContactInterval || 1000 * 600;
+    this._middlewares = {
 
+    };
+    this._eventMiddlewareCheckBinded = {
+
+    }
     this.timer = {};
 
   }
@@ -841,5 +847,48 @@ export default class WeixinBot extends EventEmitter {
       return;
     });
 
+  }
+
+  /**
+   * 给某事件添加中间件
+   * @param eventKey
+   * @param middleware
+     */
+  use(eventKey,middleware) {
+    if(typeof(middleware)!='function'){
+      console.error("middleware error!");
+    }
+    var ms = this._middlewares[eventKey];
+    if(!ms){
+      ms = [middleware];
+    }else{
+      ms.push(middleware);
+    }
+    //没有给_loopEventMiddleware绑定过事件,则绑一次
+    if(!this._eventMiddlewareCheckBinded[eventKey]){
+      this.on(eventKey,(msg)=>{
+        this._loopEventMiddleware(eventKey,msg);
+      })
+      this._eventMiddlewareCheckBinded[eventKey] = true;
+    }
+  }
+
+  /**
+   * 遍历某个事件的middleware
+   * @param eventKey
+   * @private
+     */
+  _loopEventMiddleware(eventKey,msg){
+    console.log(this._middlewares)
+    let ms = this._middlewares[eventKey];
+    if(ms){
+      async.eachSeries(ms,(middleware,cb) =>{
+        middleware(msg,this,function(){
+          cb();
+        })
+      },function(){
+
+      })
+    }
   }
 }

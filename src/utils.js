@@ -77,3 +77,30 @@ export function writeJSONFile(file, data) {
     });
   });
 }
+/**
+ * 模糊匹配算法
+ * @param string1
+ * @param string2
+ * @returns {boolean}
+ */
+export function isStringMatched(keyword,string2) {
+  var str_arr_1 = keyword.split("");
+  var str_arr_2 = string2.split("");
+
+  var minEqualCharCount = str_arr_1.length;
+
+  var equalCount = 0;
+  str_arr_1.forEach(function(char1){
+    str_arr_2.forEach(function(char2){
+      if(char1 == char2){
+        equalCount++;
+      }
+    })
+  })
+
+  if(equalCount >= minEqualCharCount){
+    return true;
+  }else{
+    return false;
+  }
+}
