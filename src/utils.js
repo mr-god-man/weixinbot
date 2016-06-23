@@ -9,7 +9,7 @@
 import fs from 'fs';
 import xml2js from 'xml2js';
 import createDebug from 'debug';
-
+import request from 'request';
 const debug = createDebug('weixinbot2:utils');
 
 
@@ -104,3 +104,7 @@ export function isStringMatched(keyword,string2) {
     return false;
   }
 }
+
+// export function requestAndGetData(url,filter){
+//   request
+// }

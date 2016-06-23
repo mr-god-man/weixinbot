@@ -22,15 +22,17 @@ bot.on('online', () => {
     console.log('online');
 });
 
-// bot.on('friend', msg => {
-//     console.log(msg.Member.NickName + ': ' + msg.Content)
-//     bot.sendText(msg.FromUserName, 'Got it')
-// });
-
 bot.use('friend',require('./../lib/middlewares/calculator'));
 bot.use('friend',require('./../lib/middlewares/reply'));
-// group: group message
-// system: system message
+// bot.use('friend',require('./../lib/middlewares/dataReport'));
+
+
+//计算器,触发:"计算 1+1"
+// bot.use('group',require('./../lib/middlewares/calculator'));
+//关键字回复
+bot.use('group',require('./../lib/middlewares/reply'));
+//数据触发器,例如:"日活"
+// bot.use('group',require('./../lib/middlewares/dataReport'));
 
 // start run loop
 bot.run()

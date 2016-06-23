@@ -1,85 +1,17 @@
-# Robot for Wechat personal chat
-**This project was forked from [feit's weixinbot](https://github.com/feit/Weixinbot)**
-
-## Installation
-
-```bash
-$ npm install weixinbot2 --save
-```
-
-**Required Nodejs v4+**
-
-
-## Usage
-
-```javascript
-'use strict';
-
-const Weixinbot = require('weixinbot2')
-
-const bot = new Weixinbot({
-  dataPath: './',  // data path, will store contacts data to improve experience
-  updateContactInterval: 1000 * 600,
-})
-
-bot.on('qrcode', qrcodeUrl => {
-  // get the login qrcode url
-  // open this url on browser and scan on your Wechat
-  console.log(qrcodeUrl)
-});
-
-bot.on('offline', () => {
-  // account offline
-});
-
-bot.on('online', () => {
-  //  account online
-});
-
-bot.on('friend', msg => {
-  console.log(msg.Member.NickName + ': ' + msg.Content)
-  bot.sendText(msg.FromUserName, 'Got it')
-});
-// group: group message
-// system: system message
-
-// start run loop
-bot.run()
-```
-
-
-## Run
-
-```bash
-# We recommend show debug message under development
-$ DEBUG=weixinbot2 node index.js
-```
-
-
-## License
+##启动
 
 ```
-Copyright (c) 2016 Zongmin Lei(雷宗民) <leizongmin@gmail.com>
-http://ucdok.com
+npm install;
 
-The MIT License
+node test/index.js
 
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+##增加特性
+
+在middlewares中增加中间件,然后在test/index.js中添加 
+
+```
+bot.use('friend',require('./../lib/middlewares/dataReport'));
+```
+中间件写法可以参考已经存在的

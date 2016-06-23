@@ -879,7 +879,6 @@ export default class WeixinBot extends EventEmitter {
    * @private
      */
   _loopEventMiddleware(eventKey,msg){
-    console.log(this._middlewares)
     let ms = this._middlewares[eventKey];
     if(ms){
       async.eachSeries(ms,(middleware,cb) =>{

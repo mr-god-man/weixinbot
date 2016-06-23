@@ -23,6 +23,8 @@
     "bluebird": "^3.3.3",
     "debug": "^2.2.0",
     "mkdirp": "^0.5.1",
+    "moment": "^2.13.0",
+    "request": "^2.72.0",
     "request-promise": "^2.0.0",
     "tough-cookie-filestore": "0.0.1",
     "xml2js": "^0.4.16"
